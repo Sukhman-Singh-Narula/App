@@ -1,5 +1,5 @@
 // File: app/(tabs)/_layout.tsx
-// This is the main tab navigation layout file
+// Updated tab navigation layout file
 
 import React from 'react';
 import { Tabs } from 'expo-router';

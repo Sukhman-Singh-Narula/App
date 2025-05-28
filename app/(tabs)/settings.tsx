@@ -1,4 +1,4 @@
-// File: app/(tabs)/settings/index.tsx
+// File: app/(tabs)/settings.tsx (renamed from settings/index.tsx)
 // This is the main settings screen component
 
 import React from 'react';
