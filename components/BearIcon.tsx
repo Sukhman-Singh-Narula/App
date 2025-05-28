@@ -8,7 +8,7 @@ export function BearIcon() {
       <View style={styles.innerGlow} />
       <View style={styles.bearContainer}>
         <Image
-          source={{ uri: 'https://raw.githubusercontent.com/stackblitz/stackblitz-codeflow/main/assets/teddy-bear.png' }}
+          source={require('@/assets/images/bear.png')}
           style={styles.bearImage}
           resizeMode="contain"
         />

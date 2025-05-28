@@ -1,3 +1,6 @@
+// File: app/(tabs)/index.tsx
+// This is the home screen component
+
 import React, { useState } from 'react';
 import {
   View,
@@ -9,7 +12,7 @@ import {
 } from 'react-native';
 import { COLORS } from '@/constants/Colors';
 import { BearIcon } from '@/components/BearIcon';
-import { Wifi, MessageSquare, History } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import WiFiModal from '@/components/WiFiModal';
 import SystemPromptModal from '@/components/SystemPromptModal';
@@ -45,7 +48,7 @@ export default function HomeScreen() {
             onPress={() => setWifiModalVisible(true)}
           >
             <View style={styles.optionIconContainer}>
-              <Wifi size={24} color={COLORS.primary[700]} />
+              <Ionicons name="wifi" size={24} color={COLORS.primary[700]} />
             </View>
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>Change WiFi Connection</Text>
@@ -60,7 +63,7 @@ export default function HomeScreen() {
             onPress={() => setPromptModalVisible(true)}
           >
             <View style={styles.optionIconContainer}>
-              <MessageSquare size={24} color={COLORS.primary[700]} />
+              <Ionicons name="chatbubble-ellipses" size={24} color={COLORS.primary[700]} />
             </View>
             <View style={styles.optionTextContainer}>
               <Text style={styles.optionTitle}>Update System Prompt</Text>
@@ -73,7 +76,7 @@ export default function HomeScreen() {
           <Link href="/child-activity" asChild>
             <TouchableOpacity style={styles.optionButton}>
               <View style={[styles.optionIconContainer, { backgroundColor: COLORS.accent[100] }]}>
-                <History size={24} color={COLORS.accent[600]} />
+                <Ionicons name="time" size={24} color={COLORS.accent[600]} />
               </View>
               <View style={styles.optionTextContainer}>
                 <Text style={styles.optionTitle}>See conversation history</Text>
@@ -85,7 +88,7 @@ export default function HomeScreen() {
           </Link>
         </View>
       </ScrollView>
-      
+
       <WiFiModal
         visible={isWifiModalVisible}
         onClose={() => setWifiModalVisible(false)}

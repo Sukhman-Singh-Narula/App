@@ -1,6 +1,9 @@
+// File: app/(tabs)/_layout.tsx
+// This is the main tab navigation layout file
+
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Chrome as Home, History, User } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/Colors';
 import { Platform } from 'react-native';
 
@@ -29,21 +32,27 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="child-activity"
         options={{
           title: 'History',
-          tabBarIcon: ({ color, size }) => <History size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

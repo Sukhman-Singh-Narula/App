@@ -1,3 +1,6 @@
+// File: app/(tabs)/settings/index.tsx
+// This is the main settings screen component
+
 import React from 'react';
 import {
   View,
@@ -9,7 +12,7 @@ import {
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
-import { User, Bell, Moon, CircleHelp as HelpCircle, FileText, LogOut, ChevronRight } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -17,7 +20,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>Account</Text>
       </View>
 
       <ScrollView style={styles.scrollView}>
@@ -30,68 +33,68 @@ export default function SettingsScreen() {
               <Text style={styles.profileName}>Jane Doe</Text>
               <Text style={styles.profileEmail}>jane.doe@example.com</Text>
             </View>
-            <ChevronRight size={20} color={COLORS.gray[400]} />
+            <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
           </TouchableOpacity>
         </Link>
 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Account</Text>
-          
+
           <Link href="/settings/account" asChild>
             <TouchableOpacity style={styles.settingItem}>
               <View style={[styles.iconContainer, { backgroundColor: COLORS.primary[100] }]}>
-                <User size={18} color={COLORS.primary[600]} />
+                <Ionicons name="person" size={18} color={COLORS.primary[600]} />
               </View>
               <Text style={styles.settingText}>Account Settings</Text>
-              <ChevronRight size={18} color={COLORS.gray[400]} />
+              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
             </TouchableOpacity>
           </Link>
-          
+
           <Link href="/settings/notifications" asChild>
             <TouchableOpacity style={styles.settingItem}>
               <View style={[styles.iconContainer, { backgroundColor: COLORS.accent[100] }]}>
-                <Bell size={18} color={COLORS.accent[600]} />
+                <Ionicons name="notifications" size={18} color={COLORS.accent[600]} />
               </View>
               <Text style={styles.settingText}>Notifications</Text>
-              <ChevronRight size={18} color={COLORS.gray[400]} />
+              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
             </TouchableOpacity>
           </Link>
-          
+
           <Link href="/settings/appearance" asChild>
             <TouchableOpacity style={styles.settingItem}>
               <View style={[styles.iconContainer, { backgroundColor: COLORS.secondary[100] }]}>
-                <Moon size={18} color={COLORS.secondary[600]} />
+                <Ionicons name="moon" size={18} color={COLORS.secondary[600]} />
               </View>
               <Text style={styles.settingText}>Appearance</Text>
-              <ChevronRight size={18} color={COLORS.gray[400]} />
+              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
             </TouchableOpacity>
           </Link>
         </View>
 
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Support</Text>
-          
+
           <TouchableOpacity style={styles.settingItem}>
             <View style={[styles.iconContainer, { backgroundColor: COLORS.secondary[100] }]}>
-              <HelpCircle size={18} color={COLORS.secondary[600]} />
+              <Ionicons name="help-circle" size={18} color={COLORS.secondary[600]} />
             </View>
             <Text style={styles.settingText}>Help & Support</Text>
-            <ChevronRight size={18} color={COLORS.gray[400]} />
+            <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
           </TouchableOpacity>
-          
+
           <Link href="/settings/privacy-policy" asChild>
             <TouchableOpacity style={styles.settingItem}>
               <View style={[styles.iconContainer, { backgroundColor: COLORS.gray[200] }]}>
-                <FileText size={18} color={COLORS.gray[600]} />
+                <Ionicons name="document-text" size={18} color={COLORS.gray[600]} />
               </View>
               <Text style={styles.settingText}>Terms & Privacy Policy</Text>
-              <ChevronRight size={18} color={COLORS.gray[400]} />
+              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
             </TouchableOpacity>
           </Link>
         </View>
 
         <TouchableOpacity style={styles.logoutButton}>
-          <LogOut size={18} color={COLORS.error.default} />
+          <Ionicons name="log-out" size={18} color={COLORS.error.default} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
