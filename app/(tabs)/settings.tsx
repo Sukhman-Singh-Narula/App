@@ -1,6 +1,3 @@
-// File: app/(tabs)/settings.tsx (renamed from settings/index.tsx)
-// This is the main settings screen component
-
 import React from 'react';
 import {
   View,
@@ -9,13 +6,46 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppDispatch, useAppSelector } from '@/hooks';
+import { signOut } from '@/store/slices/authSlice';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const { user } = useAppSelector((state) => state.auth);
+  const { profile } = useAppSelector((state) => state.user);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: () => {
+            dispatch(signOut());
+            router.replace('/auth/login');
+          }
+        },
+      ]
+    );
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,11 +57,17 @@ export default function SettingsScreen() {
         <Link href="/settings/account" asChild>
           <TouchableOpacity style={styles.profileCard}>
             <View style={styles.profileImagePlaceholder}>
-              <Text style={styles.profileImageText}>JD</Text>
+              <Text style={styles.profileImageText}>
+                {profile?.parent.name ? getInitials(profile.parent.name) : 'U'}
+              </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>Jane Doe</Text>
-              <Text style={styles.profileEmail}>jane.doe@example.com</Text>
+              <Text style={styles.profileName}>
+                {profile?.parent.name || user?.email || 'User'}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {profile?.parent.email || user?.email}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={COLORS.gray[400]} />
           </TouchableOpacity>
@@ -93,7 +129,7 @@ export default function SettingsScreen() {
           </Link>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out" size={18} color={COLORS.error.default} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>

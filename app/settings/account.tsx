@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,36 +8,112 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
-  Image,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
-import { ArrowLeft, Camera } from 'lucide-react-native';
+import { ArrowLeft, Camera, Plus, X } from 'lucide-react-native';
+import { useAppDispatch, useAppSelector } from '@/hooks';
+import { updateUserProfile, fetchUserProfile } from '@/store/slices/userSlice';
 
 export default function AccountSettingsScreen() {
   const router = useRouter();
-  
-  const [accountInfo, setAccountInfo] = useState({
-    name: 'Jane Doe',
-    email: 'jane.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    teddyName: 'Beary',
-    teddyId: 'TDDY-7890-1234',
-    childName: 'Tommy',
-    childAge: '5',
-    learningLanguage: 'Spanish',
-  });
+  const dispatch = useAppDispatch();
+  const { profile, isLoading } = useAppSelector((state) => state.user);
 
-  const handleChange = (field: keyof typeof accountInfo, value: string) => {
-    setAccountInfo({
-      ...accountInfo,
-      [field]: value,
-    });
+  // Parent information
+  const [parentName, setParentName] = useState('');
+  const [parentEmail, setParentEmail] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+
+  // Child information
+  const [childName, setChildName] = useState('');
+  const [childAge, setChildAge] = useState('');
+  const [interests, setInterests] = useState<string[]>(['']);
+
+  useEffect(() => {
+    // Load profile data if not already loaded
+    if (!profile) {
+      dispatch(fetchUserProfile());
+    }
+  }, [dispatch, profile]);
+
+  useEffect(() => {
+    // Populate form with existing profile data
+    if (profile) {
+      setParentName(profile.parent.name);
+      setParentEmail(profile.parent.email);
+      setParentPhone(profile.parent.phone_number || '');
+      setChildName(profile.child.name);
+      setChildAge(profile.child.age.toString());
+      setInterests(profile.child.interests.length > 0 ? profile.child.interests : ['']);
+    }
+  }, [profile]);
+
+  const addInterest = () => {
+    setInterests([...interests, '']);
   };
 
-  const handleSave = () => {
-    console.log('Saving account info:', accountInfo);
-    router.back();
+  const removeInterest = (index: number) => {
+    if (interests.length > 1) {
+      setInterests(interests.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateInterest = (index: number, value: string) => {
+    const newInterests = [...interests];
+    newInterests[index] = value;
+    setInterests(newInterests);
+  };
+
+  const handleSave = async () => {
+    // Validation
+    if (!parentName || !parentEmail || !childName || !childAge) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    const age = parseInt(childAge);
+    if (isNaN(age) || age < 1 || age > 18) {
+      Alert.alert('Error', 'Please enter a valid age between 1 and 18');
+      return;
+    }
+
+    const filteredInterests = interests.filter(interest => interest.trim() !== '');
+    if (filteredInterests.length === 0) {
+      Alert.alert('Error', 'Please add at least one interest for your child');
+      return;
+    }
+
+    try {
+      await dispatch(updateUserProfile({
+        parent: {
+          name: parentName,
+          email: parentEmail,
+          phone_number: parentPhone || undefined,
+        },
+        child: {
+          name: childName,
+          age,
+          interests: filteredInterests,
+        },
+      })).unwrap();
+
+      Alert.alert('Success', 'Profile updated successfully!');
+      router.back();
+    } catch (error) {
+      Alert.alert('Update Failed', error as string);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   return (
@@ -54,7 +130,7 @@ export default function AccountSettingsScreen() {
         <View style={styles.profileImageSection}>
           <View style={styles.profileImageContainer}>
             <View style={styles.profileImage}>
-              <Text style={styles.profileInitials}>JD</Text>
+              <Text style={styles.profileInitials}>{getInitials(parentName)}</Text>
             </View>
             <TouchableOpacity style={styles.cameraButton}>
               <Camera size={16} color={COLORS.white} />
@@ -64,36 +140,36 @@ export default function AccountSettingsScreen() {
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-          
+          <Text style={styles.sectionTitle}>Parent Information</Text>
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
+            <Text style={styles.label}>Full Name *</Text>
             <TextInput
               style={styles.input}
-              value={accountInfo.name}
-              onChangeText={(value) => handleChange('name', value)}
+              value={parentName}
+              onChangeText={setParentName}
               placeholder="Enter your full name"
             />
           </View>
-          
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>Email Address *</Text>
             <TextInput
               style={styles.input}
-              value={accountInfo.email}
-              onChangeText={(value) => handleChange('email', value)}
+              value={parentEmail}
+              onChangeText={setParentEmail}
               placeholder="Enter your email address"
               keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={styles.input}
-              value={accountInfo.phone}
-              onChangeText={(value) => handleChange('phone', value)}
+              value={parentPhone}
+              onChangeText={setParentPhone}
               placeholder="Enter your phone number"
               keyboardType="phone-pad"
             />
@@ -102,68 +178,69 @@ export default function AccountSettingsScreen() {
 
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Child Information</Text>
-          
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Child's Name</Text>
+            <Text style={styles.label}>Child's Name *</Text>
             <TextInput
               style={styles.input}
-              value={accountInfo.childName}
-              onChangeText={(value) => handleChange('childName', value)}
+              value={childName}
+              onChangeText={setChildName}
               placeholder="Enter child's name"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Child's Age</Text>
+            <Text style={styles.label}>Child's Age *</Text>
             <TextInput
               style={styles.input}
-              value={accountInfo.childAge}
-              onChangeText={(value) => handleChange('childAge', value)}
+              value={childAge}
+              onChangeText={setChildAge}
               placeholder="Enter child's age"
               keyboardType="number-pad"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Learning Language</Text>
-            <TextInput
-              style={styles.input}
-              value={accountInfo.learningLanguage}
-              onChangeText={(value) => handleChange('learningLanguage', value)}
-              placeholder="Enter learning language"
-            />
+            <Text style={styles.label}>Interests *</Text>
+            {interests.map((interest, index) => (
+              <View key={index} style={styles.interestRow}>
+                <TextInput
+                  style={styles.interestInput}
+                  placeholder={`Interest ${index + 1}`}
+                  value={interest}
+                  onChangeText={(value) => updateInterest(index, value)}
+                />
+                {interests.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removeInterest(index)}
+                  >
+                    <X size={20} color={COLORS.error.default} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+
+            <TouchableOpacity style={styles.addButton} onPress={addInterest}>
+              <Plus size={20} color={COLORS.primary[600]} />
+              <Text style={styles.addButtonText}>Add Interest</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Teddy Bear Information</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Teddy Bear Name</Text>
-            <TextInput
-              style={styles.input}
-              value={accountInfo.teddyName}
-              onChangeText={(value) => handleChange('teddyName', value)}
-              placeholder="Enter teddy bear name"
-            />
-          </View>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Teddy Bear ID</Text>
-            <View style={styles.disabledInputContainer}>
-              <Text style={styles.disabledInput}>{accountInfo.teddyId}</Text>
-              <Text style={styles.disabledInputNote}>Cannot be changed</Text>
-            </View>
-          </View>
-        </View>
-        
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Save Changes</Text>
+
+          <TouchableOpacity
+            style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={isLoading}
+          >
+            <Text style={styles.saveButtonText}>
+              {isLoading ? 'Saving...' : 'Save Changes'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -278,26 +355,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.gray[800],
   },
-  disabledInputContainer: {
+  interestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  interestInput: {
+    flex: 1,
     height: 48,
     borderWidth: 1,
     borderColor: COLORS.gray[300],
     borderRadius: 8,
-    backgroundColor: COLORS.gray[100],
     paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  disabledInput: {
     fontFamily: 'Nunito-Regular',
     fontSize: 16,
-    color: COLORS.gray[600],
+    color: COLORS.gray[800],
   },
-  disabledInputNote: {
-    fontFamily: 'Nunito-Regular',
-    fontSize: 12,
-    color: COLORS.gray[500],
-    position: 'absolute',
-    right: 16,
+  removeButton: {
+    marginLeft: 12,
+    padding: 8,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderWidth: 2,
+    borderColor: COLORS.primary[200],
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  addButtonText: {
+    fontFamily: 'Nunito-SemiBold',
+    fontSize: 14,
+    color: COLORS.primary[600],
+    marginLeft: 8,
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -327,6 +420,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     backgroundColor: COLORS.primary[600],
     borderRadius: 8,
+  },
+  saveButtonDisabled: {
+    backgroundColor: COLORS.gray[300],
   },
   saveButtonText: {
     fontFamily: 'Nunito-SemiBold',

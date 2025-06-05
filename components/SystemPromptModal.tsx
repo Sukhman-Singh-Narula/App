@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// File: components/SystemPromptModal.tsx (Updated with Redux)
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -10,9 +11,12 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { COLORS } from '@/constants/Colors';
 import { MessageSquare, X } from 'lucide-react-native';
+import { useAppDispatch, useAppSelector } from '@/hooks';
+import { updateUserProfile } from '@/store/slices/userSlice';
 
 interface SystemPromptModalProps {
   visible: boolean;
@@ -20,15 +24,32 @@ interface SystemPromptModalProps {
 }
 
 export default function SystemPromptModal({ visible, onClose }: SystemPromptModalProps) {
+  const dispatch = useAppDispatch();
+  const { profile, isLoading } = useAppSelector((state) => state.user);
   const [systemPrompt, setSystemPrompt] = useState('');
 
-  const handleSubmit = () => {
-    // Here you would implement the actual system prompt update logic
-    console.log('Updating system prompt:', systemPrompt);
-    
-    // Reset form and close modal
-    setSystemPrompt('');
-    onClose();
+  useEffect(() => {
+    if (profile && visible) {
+      setSystemPrompt(profile.system_prompt || '');
+    }
+  }, [profile, visible]);
+
+  const handleSubmit = async () => {
+    if (!systemPrompt.trim()) {
+      Alert.alert('Error', 'Please enter a system prompt');
+      return;
+    }
+
+    try {
+      await dispatch(updateUserProfile({
+        system_prompt: systemPrompt,
+      })).unwrap();
+
+      Alert.alert('Success', 'System prompt updated successfully!');
+      onClose();
+    } catch (error) {
+      Alert.alert('Update Failed', error as string);
+    }
   };
 
   const dismissKeyboard = () => {
@@ -58,11 +79,11 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
             <View style={styles.iconContainer}>
               <MessageSquare size={32} color={COLORS.primary[600]} />
             </View>
-            
+
             <Text style={styles.description}>
-              Customize how your StoryTeller interacts with your child
+              Customize how your StoryTeller interacts with {profile?.child.name || 'your child'}
             </Text>
-            
+
             <View style={styles.inputContainer}>
               <Text style={styles.label}>System Prompt</Text>
               <TextInput
@@ -75,7 +96,7 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
                 textAlignVertical="top"
               />
             </View>
-            
+
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -83,16 +104,18 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
                   styles.updateButton,
-                  !systemPrompt && styles.updateButtonDisabled,
+                  (!systemPrompt.trim() || isLoading) && styles.updateButtonDisabled,
                 ]}
                 onPress={handleSubmit}
-                disabled={!systemPrompt}
+                disabled={!systemPrompt.trim() || isLoading}
               >
-                <Text style={styles.updateButtonText}>Update</Text>
+                <Text style={styles.updateButtonText}>
+                  {isLoading ? 'Updating...' : 'Update'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

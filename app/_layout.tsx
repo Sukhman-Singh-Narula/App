@@ -1,17 +1,32 @@
+// File: app/_layout.tsx
 import 'react-native-svg';
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
+import { store, persistor } from '../store/store';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold } from '@expo-google-fonts/nunito';
 import * as SplashScreen from 'expo-splash-screen';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import SplashScreenComponent from '@/components/SplashScreenComponent';
+import { COLORS } from '@/constants/Colors';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function LoadingScreen() {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary[100] }}>
+      <Text style={{ fontFamily: 'Nunito-SemiBold', fontSize: 18, color: COLORS.primary[700] }}>
+        Loading...
+      </Text>
+    </View>
+  );
+}
+
+function AppContent() {
   useFrameworkReady();
   const [showSplash, setShowSplash] = useState(true);
 
@@ -27,7 +42,7 @@ export default function RootLayout() {
         // Wait for 2.5 seconds to show our custom splash screen
         await new Promise(resolve => setTimeout(resolve, 2500));
         await SplashScreen.hideAsync();
-        
+
         // After another second, hide our custom splash and show the app
         setTimeout(() => {
           setShowSplash(false);
@@ -49,11 +64,23 @@ export default function RootLayout() {
         <SplashScreenComponent />
       ) : (
         <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
         </Stack>
       )}
       <StatusBar style="auto" />
     </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <Provider store={store}>
+      <PersistGate loading={<LoadingScreen />} persistor={persistor}>
+        <AppContent />
+      </PersistGate>
+    </Provider>
   );
 }
