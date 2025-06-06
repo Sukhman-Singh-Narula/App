@@ -1,9 +1,10 @@
-// File: hooks/useAuth.ts
+// File: hooks/useAuth.ts - Simplified Firebase starter pattern
 import { useEffect } from 'react';
-import { useAppDispatch, useAppSelector } from './index';
+import { useAppDispatch } from './useAppDispatch';
+import { useAppSelector } from './useAppSelector';
 import { checkTokenValidity, setUser } from '../store/slices/authSlice';
-import { auth } from '../config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 export const useAuth = () => {
     const dispatch = useAppDispatch();
@@ -15,12 +16,29 @@ export const useAuth = () => {
         // Check token validity on app start
         dispatch(checkTokenValidity());
 
-        // Listen for Firebase auth state changes
+        // Set up Firebase auth state listener (like starter)
+        console.log('🔄 Setting up Firebase auth listener...');
+
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            dispatch(setUser(firebaseUser));
+            console.log('🔄 Firebase auth state changed:', firebaseUser ? 'User signed in' : 'User signed out');
+
+            // Convert Firebase user to serializable format
+            const serializableUser = firebaseUser ? {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                emailVerified: firebaseUser.emailVerified
+            } : null;
+
+            dispatch(setUser(serializableUser));
         });
 
-        return unsubscribe;
+        console.log('✅ Firebase auth listener set up successfully');
+
+        // Cleanup listener on unmount
+        return () => {
+            console.log('✅ Firebase auth listener cleaned up');
+            unsubscribe();
+        };
     }, [dispatch]);
 
     return {
@@ -32,4 +50,3 @@ export const useAuth = () => {
         error,
     };
 };
-

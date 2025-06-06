@@ -1,11 +1,12 @@
-// File: app/(tabs)/_layout.tsx
-// Updated tab navigation layout file
-
+// File: app/(tabs)/_layout.tsx - Fixed with Redux context
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/Colors';
 import { Platform } from 'react-native';
+
+// This component is already wrapped by the Provider in app/_layout.tsx
+// So we don't need to add Provider here, just ensure we're using hooks correctly
 
 export default function TabLayout() {
   return (

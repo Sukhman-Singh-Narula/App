@@ -1,4 +1,4 @@
-ile: store / store.ts
+// File: store/store.ts - Fixed store configuration
 import { configureStore } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,8 +28,10 @@ export const store = configureStore({
         getDefaultMiddleware({
             serializableCheck: {
                 ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+                ignoredPaths: ['register'],
             },
         }),
+    devTools: __DEV__,
 });
 
 export const persistor = persistStore(store);

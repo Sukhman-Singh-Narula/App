@@ -1,5 +1,6 @@
-// File: app/_layout.tsx
+// File: app/_layout.tsx - Fixed route structure
 import 'react-native-svg';
+import 'react-native-url-polyfill/auto';
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -9,7 +10,7 @@ import { store, persistor } from '../store/store';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold } from '@expo-google-fonts/nunito';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, Text } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import SplashScreenComponent from '@/components/SplashScreenComponent';
 import { COLORS } from '@/constants/Colors';
 
@@ -19,7 +20,13 @@ SplashScreen.preventAutoHideAsync();
 function LoadingScreen() {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.primary[100] }}>
-      <Text style={{ fontFamily: 'Nunito-SemiBold', fontSize: 18, color: COLORS.primary[700] }}>
+      <ActivityIndicator size="large" color={COLORS.primary[600]} />
+      <Text style={{
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 18,
+        color: COLORS.primary[700],
+        marginTop: 16
+      }}>
         Loading...
       </Text>
     </View>
@@ -39,23 +46,24 @@ function AppContent() {
   useEffect(() => {
     const hideSplash = async () => {
       if (fontsLoaded || fontError) {
-        // Wait for 2.5 seconds to show our custom splash screen
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        await SplashScreen.hideAsync();
-
-        // After another second, hide our custom splash and show the app
-        setTimeout(() => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await SplashScreen.hideAsync();
+          setTimeout(() => {
+            setShowSplash(false);
+          }, 800);
+        } catch (error) {
+          console.warn('Error hiding splash screen:', error);
           setShowSplash(false);
-        }, 1000);
+        }
       }
     };
 
     hideSplash();
   }, [fontsLoaded, fontError]);
 
-  // Show nothing while fonts are loading or on error
   if (!fontsLoaded && !fontError) {
-    return null;
+    return <LoadingScreen />;
   }
 
   return (
@@ -64,9 +72,10 @@ function AppContent() {
         <SplashScreenComponent />
       ) : (
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" />
+          {/* Remove the "settings" screen declaration since it conflicts with settings/ folder */}
           <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
         </Stack>
       )}
