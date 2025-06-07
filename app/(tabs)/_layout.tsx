@@ -1,12 +1,9 @@
-// File: app/(tabs)/_layout.tsx - Fixed with Redux context
+// File: app/(tabs)/_layout.tsx - Fixed tabs layout without settings tab
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/Colors';
 import { Platform } from 'react-native';
-
-// This component is already wrapped by the Provider in app/_layout.tsx
-// So we don't need to add Provider here, just ensure we're using hooks correctly
 
 export default function TabLayout() {
   return (
@@ -48,7 +45,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="account"
         options={{
           title: 'Account',
           tabBarIcon: ({ color, size }) => (

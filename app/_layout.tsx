@@ -1,4 +1,4 @@
-// File: app/_layout.tsx - Fixed route structure
+// File: app/_layout.tsx - Completely fixed root layout
 import 'react-native-svg';
 import 'react-native-url-polyfill/auto';
 import { useEffect, useState } from 'react';
@@ -75,7 +75,7 @@ function AppContent() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="auth" />
-          {/* Remove the "settings" screen declaration since it conflicts with settings/ folder */}
+          <Stack.Screen name="settings" />
           <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
         </Stack>
       )}
@@ -84,6 +84,7 @@ function AppContent() {
   );
 }
 
+// Root component with proper error boundary
 export default function RootLayout() {
   return (
     <Provider store={store}>

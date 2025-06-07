@@ -1,3 +1,4 @@
+// File: app/(tabs)/account.tsx - Moved settings content to account tab
 import React from 'react';
 import {
   View,
@@ -14,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '@/hooks';
 import { signOut } from '@/store/slices/authSlice';
 
-export default function SettingsScreen() {
+export default function AccountScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);

@@ -1,11 +1,25 @@
-// File: store/slices/authSlice.ts - Simplified Firebase starter pattern
+// File: store/slices/authSlice.ts - Simplified auth slice to avoid Firebase conflicts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '../../config/firebase';
 import { apiService } from '../../services/apiService';
 
-// Serializable user interface (no functions)
+// Import Firebase auth after a delay to ensure it's initialized
+let auth: any = null;
+
+const initFirebaseAuth = async () => {
+    if (!auth) {
+        try {
+            const { auth: firebaseAuth } = await import('../../config/firebase');
+            auth = firebaseAuth;
+        } catch (error) {
+            console.error('Failed to initialize Firebase auth:', error);
+        }
+    }
+    return auth;
+};
+
+// Serializable user interface
 interface SerializableUser {
     uid: string;
     email: string | null;
@@ -50,21 +64,24 @@ export const signInWithEmail = createAsyncThunk(
         try {
             console.log('🔄 Attempting to sign in...');
 
-            // Direct Firebase call (like starter)
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const firebaseAuth = await initFirebaseAuth();
+            if (!firebaseAuth) {
+                throw new Error('Firebase auth not initialized');
+            }
+
+            const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
             console.log('✅ Firebase sign in successful');
 
             const token = await userCredential.user.getIdToken();
 
-            // Try to verify with backend (optional)
+            // Try to verify with backend
             let hasProfile = false;
             try {
                 const response = await apiService.verifyToken(token);
                 hasProfile = response.has_profile;
                 console.log('✅ Backend verification successful');
             } catch (apiError) {
-                console.warn('⚠️ Backend verification failed, continuing without backend:', apiError);
-                // Continue without backend - not critical for auth
+                console.warn('⚠️ Backend verification failed:', apiError);
             }
 
             // Store token with expiry
@@ -81,7 +98,6 @@ export const signInWithEmail = createAsyncThunk(
         } catch (error: any) {
             console.error('❌ Sign in failed:', error);
 
-            // Handle Firebase-specific errors
             let errorMessage = 'Sign in failed';
             if (error.code === 'auth/user-not-found') {
                 errorMessage = 'No account found with this email address';
@@ -106,8 +122,12 @@ export const signUpWithEmail = createAsyncThunk(
         try {
             console.log('🔄 Attempting to create account...');
 
-            // Direct Firebase call (like starter)
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const firebaseAuth = await initFirebaseAuth();
+            if (!firebaseAuth) {
+                throw new Error('Firebase auth not initialized');
+            }
+
+            const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
             console.log('✅ Firebase account creation successful');
 
             const token = await userCredential.user.getIdToken();
@@ -121,12 +141,11 @@ export const signUpWithEmail = createAsyncThunk(
                 user: toSerializableUser(userCredential.user),
                 token,
                 tokenExpiry: expiry,
-                hasProfile: false, // New users always need profile
+                hasProfile: false,
             };
         } catch (error: any) {
             console.error('❌ Sign up failed:', error);
 
-            // Handle Firebase-specific errors
             let errorMessage = 'Account creation failed';
             if (error.code === 'auth/email-already-in-use') {
                 errorMessage = 'An account with this email already exists';
@@ -147,17 +166,17 @@ export const signOut = createAsyncThunk(
     'auth/signOut',
     async (_, { rejectWithValue }) => {
         try {
-            // Clear local storage first
             await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
 
-            // Direct Firebase sign out (like starter)
-            await firebaseSignOut(auth);
+            const firebaseAuth = await initFirebaseAuth();
+            if (firebaseAuth) {
+                await firebaseSignOut(firebaseAuth);
+            }
 
             console.log('✅ Sign out successful');
             return {};
         } catch (error: any) {
             console.error('❌ Sign out error:', error);
-            // Even if Firebase sign out fails, local state is cleared
             return {};
         }
     }
@@ -182,7 +201,7 @@ export const checkTokenValidity = createAsyncThunk(
                 return rejectWithValue('Token expired');
             }
 
-            // Try to verify with backend (optional)
+            // Try to verify with backend
             let hasProfile = false;
             let userInfo = null;
 
@@ -191,14 +210,12 @@ export const checkTokenValidity = createAsyncThunk(
                 if (response.valid) {
                     hasProfile = response.has_profile;
                     userInfo = response.user_info;
-                    console.log('✅ Token validation successful');
                 } else {
                     await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
                     return rejectWithValue('Invalid token');
                 }
             } catch (apiError) {
-                console.warn('⚠️ Backend token verification failed, using cached token:', apiError);
-                // Continue with cached token if backend is unavailable
+                console.warn('⚠️ Backend token verification failed:', apiError);
             }
 
             return {

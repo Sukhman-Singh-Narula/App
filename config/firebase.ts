@@ -1,10 +1,9 @@
-// File: config/firebase.ts - Simplified based on working Firebase starter
-import { initializeApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
-import Constants from "expo-constants";
+// File: config/firebase.ts - Complete Firebase fix
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Firebase config using environment variables (like the working starter)
+// Firebase config
 const firebaseConfig = {
     apiKey: "AIzaSyB1zev9GZAHJ57Rzlao8PuzJbxxI-i_6D0",
     authDomain: "storyteller-7ece7.firebaseapp.com",
@@ -15,23 +14,31 @@ const firebaseConfig = {
     measurementId: "G-6RV480TXEE"
 };
 
-// Simple, direct initialization (like the working starter)
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase app only once
+let app;
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+} else {
+    app = getApps()[0];
+}
 
-// Initialize auth with persistence (exactly like working starter)
-const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-});
+// Initialize auth only once
+let auth;
+try {
+    // Try to get existing auth instance first
+    auth = getAuth(app);
+} catch (error) {
+    // If that fails, initialize with persistence
+    try {
+        auth = initializeAuth(app, {
+            persistence: getReactNativePersistence(AsyncStorage),
+        });
+    } catch (initError) {
+        console.error('Firebase auth initialization error:', initError);
+        // Fallback to basic auth
+        auth = getAuth(app);
+    }
+}
 
-// Simple exports (like working starter)
 export { auth, app };
 export default auth;
-
-// Helper to check if properly configured
-export const isFirebaseConfigured = () => {
-    return !!(
-        firebaseConfig.apiKey &&
-        firebaseConfig.projectId &&
-        firebaseConfig.apiKey !== 'AIzaSyB1zev9GZAHJ57Rzlao8PuzJbxxI-i_6D0'
-    );
-};

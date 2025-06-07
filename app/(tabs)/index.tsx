@@ -216,7 +216,7 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          <Link href="/child-activity" asChild>
+          <Link href="/(tabs)/child-activity" asChild>
             <TouchableOpacity style={styles.optionButton}>
               <View style={[styles.optionIconContainer, { backgroundColor: COLORS.accent[100] }]}>
                 <Ionicons name="time" size={24} color={COLORS.accent[600]} />
