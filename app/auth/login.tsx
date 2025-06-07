@@ -1,4 +1,4 @@
-// File: app/auth/login.tsx
+// File: app/auth/login.tsx - Fixed navigation logic
 import React, { useState } from 'react';
 import {
     View,
@@ -33,15 +33,21 @@ export default function LoginScreen() {
         }
 
         try {
+            console.log('🔑 Attempting login...');
             const result = await dispatch(signInWithEmail({ email, password })).unwrap();
 
-            // Check if user has a profile
+            console.log('✅ Login successful:', { hasProfile: result.hasProfile });
+
+            // Check if user has a profile and navigate accordingly
             if (result.hasProfile) {
+                console.log('🏠 User has profile, going to home');
                 router.replace('/(tabs)');
             } else {
+                console.log('👤 User needs profile setup');
                 router.replace('/auth/setup-profile');
             }
         } catch (error) {
+            console.error('❌ Login failed:', error);
             Alert.alert('Login Failed', error as string);
         }
     };

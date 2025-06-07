@@ -1,4 +1,4 @@
-// File: app/index.tsx
+// File: app/index.tsx - Fixed navigation logic
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
@@ -9,17 +9,27 @@ export default function IndexScreen() {
     const { isAuthenticated, hasProfile, isLoading } = useAuth();
 
     useEffect(() => {
-        if (!isLoading) {
-            if (isAuthenticated) {
-                if (hasProfile) {
-                    router.replace('/(tabs)');
+        // Add a small delay to ensure state is properly loaded
+        const timer = setTimeout(() => {
+            if (!isLoading) {
+                console.log('🔍 Navigation check:', { isAuthenticated, hasProfile });
+
+                if (isAuthenticated) {
+                    if (hasProfile) {
+                        console.log('🏠 Redirecting to home (has profile)');
+                        router.replace('/(tabs)');
+                    } else {
+                        console.log('👤 Redirecting to profile setup (no profile)');
+                        router.replace('/auth/setup-profile');
+                    }
                 } else {
-                    router.replace('/auth/setup-profile');
+                    console.log('🔑 Redirecting to login (not authenticated)');
+                    router.replace('/auth/login');
                 }
-            } else {
-                router.replace('/auth/login');
             }
-        }
+        }, 100); // Small delay to ensure state is updated
+
+        return () => clearTimeout(timer);
     }, [isAuthenticated, hasProfile, isLoading]);
 
     return (

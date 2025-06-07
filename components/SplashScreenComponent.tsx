@@ -17,13 +17,13 @@ export default function SplashScreenComponent() {
         Animated.timing(logoOpacity, {
           toValue: 1,
           duration: 800,
-          useNativeDriver: true,
+          useNativeDriver: false, // Changed to false for web compatibility
         }),
         Animated.spring(logoScale, {
           toValue: 1,
           friction: 8,
           tension: 40,
-          useNativeDriver: true,
+          useNativeDriver: false, // Changed to false for web compatibility
         }),
       ]),
       // After logo animation, fade in text
@@ -31,7 +31,7 @@ export default function SplashScreenComponent() {
         toValue: 1,
         duration: 600,
         delay: 300,
-        useNativeDriver: true,
+        useNativeDriver: false, // Changed to false for web compatibility
       }),
     ]).start();
   }, []);
@@ -50,9 +50,9 @@ export default function SplashScreenComponent() {
         >
           <Bear size={80} color={COLORS.primary[800]} strokeWidth={1.5} />
         </Animated.View>
-        
+
         <Animated.View style={{ opacity: textOpacity }}>
-          <Text style={styles.logoText}>BERN</Text>
+          <Text style={styles.logoText}>STORYTELLER</Text>
           <Text style={styles.tagline}>Smart companion for your child</Text>
         </Animated.View>
       </View>
@@ -78,11 +78,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: COLORS.gray[900],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    // Web-compatible shadow
+    ...Platform.select({
+      web: {
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+      },
+      default: {
+        shadowColor: COLORS.gray[900],
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 8,
+      },
+    }),
   },
   logoText: {
     fontFamily: 'Nunito-Bold',

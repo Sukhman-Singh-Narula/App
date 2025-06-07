@@ -1,4 +1,4 @@
-// File: app/(tabs)/account.tsx - Moved settings content to account tab
+// File: app/(tabs)/account.tsx - Fixed logout functionality
 import React from 'react';
 import {
   View,
@@ -13,7 +13,9 @@ import { Link, useRouter } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '@/hooks';
-import { signOut } from '@/store/slices/authSlice';
+import { signOut, resetAuth } from '@/store/slices/authSlice';
+import { clearUserProfile } from '@/store/slices/userSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -30,9 +32,33 @@ export default function AccountScreen() {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: () => {
-            dispatch(signOut());
-            router.replace('/auth/login');
+          onPress: async () => {
+            try {
+              console.log('🔄 Logging out...');
+
+              // Clear Redux state
+              dispatch(resetAuth());
+              dispatch(clearUserProfile());
+
+              // Clear AsyncStorage
+              await AsyncStorage.multiRemove([
+                'authToken',
+                'tokenExpiry',
+                'persist:root', // Clear persisted state
+              ]);
+
+              // Dispatch sign out action
+              await dispatch(signOut());
+
+              console.log('✅ Logout successful, redirecting to login');
+
+              // Navigate to login
+              router.replace('/auth/login');
+            } catch (error) {
+              console.error('❌ Logout error:', error);
+              // Force logout even if there's an error
+              router.replace('/auth/login');
+            }
           }
         },
       ]

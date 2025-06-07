@@ -1,6 +1,8 @@
+// File: store/slices/userSlice.ts - With token refresh support
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { apiService } from '../../services/apiService';
 import { RootState } from '../store';
+import { refreshToken } from './authSlice';
 
 export interface ChildProfile {
     name: string;
@@ -37,20 +39,60 @@ const initialState: UserState = {
     error: null,
 };
 
+// Helper function to handle API calls with token refresh
+const makeAuthenticatedRequest = async (
+    apiCall: (token: string) => Promise<any>,
+    getState: () => any,
+    dispatch: any
+): Promise<any> => {
+    const state = getState() as RootState;
+    let token = state.auth.token;
+
+    if (!token) {
+        throw new Error('No authentication token');
+    }
+
+    try {
+        // Try the API call with current token
+        return await apiCall(token);
+    } catch (error: any) {
+        // If token expired, try to refresh and retry
+        if (error.message.includes('Token expired') || error.message.includes('401')) {
+            console.log('🔄 Token expired during API call, refreshing...');
+
+            try {
+                const refreshResult = await dispatch(refreshToken()).unwrap();
+                // Retry with refreshed token
+                return await apiCall(refreshResult.token);
+            } catch (refreshError) {
+                console.error('❌ Token refresh failed:', refreshError);
+                throw new Error('Authentication failed. Please sign in again.');
+            }
+        }
+        throw error;
+    }
+};
+
 export const fetchUserProfile = createAsyncThunk(
     'user/fetchProfile',
-    async (_, { getState, rejectWithValue }) => {
+    async (_, { getState, rejectWithValue, dispatch }) => {
         try {
-            const state = getState() as RootState;
-            const token = state.auth.token;
+            console.log('🔄 Fetching user profile...');
 
-            if (!token) {
-                throw new Error('No authentication token');
+            const response = await makeAuthenticatedRequest(
+                (token) => apiService.getUserProfile(token),
+                getState,
+                dispatch
+            );
+
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to fetch profile');
             }
 
-            const response = await apiService.getUserProfile(token);
+            console.log('✅ User profile fetched successfully');
             return response.profile;
         } catch (error: any) {
+            console.error('❌ Failed to fetch user profile:', error);
             return rejectWithValue(error.message);
         }
     }
@@ -64,25 +106,30 @@ export const registerUser = createAsyncThunk(
         systemPrompt?: string;
     }, { getState, rejectWithValue, dispatch }) => {
         try {
-            const state = getState() as RootState;
-            const token = state.auth.token;
+            console.log('🔄 Registering user...');
 
-            if (!token) {
-                throw new Error('No authentication token');
+            const response = await makeAuthenticatedRequest(
+                (token) => apiService.registerUser({
+                    firebase_token: token,
+                    parent,
+                    child,
+                    system_prompt: systemPrompt,
+                }),
+                getState,
+                dispatch
+            );
+
+            if (!response.success) {
+                throw new Error(response.message || 'Registration failed');
             }
-
-            const response = await apiService.registerUser({
-                firebase_token: token,
-                parent,
-                child,
-                system_prompt: systemPrompt,
-            });
 
             // Update auth state to reflect profile creation
             dispatch({ type: 'auth/updateProfileStatus', payload: true });
 
+            console.log('✅ User registered successfully');
             return response.profile;
         } catch (error: any) {
+            console.error('❌ User registration failed:', error);
             return rejectWithValue(error.message);
         }
     }
@@ -94,24 +141,72 @@ export const updateUserProfile = createAsyncThunk(
         parent?: ParentProfile;
         child?: ChildProfile;
         systemPrompt?: string;
-    }, { getState, rejectWithValue }) => {
+    }, { getState, rejectWithValue, dispatch }) => {
         try {
-            const state = getState() as RootState;
-            const token = state.auth.token;
+            console.log('🔄 Updating user profile...');
 
-            if (!token) {
-                throw new Error('No authentication token');
+            const updateData: any = {};
+            if (parent) updateData.parent = parent;
+            if (child) updateData.child = child;
+            if (systemPrompt) updateData.system_prompt = systemPrompt;
+
+            const response = await makeAuthenticatedRequest(
+                (token) => apiService.updateUserProfile({
+                    firebase_token: token,
+                    ...updateData,
+                }),
+                getState,
+                dispatch
+            );
+
+            if (!response.success) {
+                throw new Error(response.message || 'Profile update failed');
             }
 
-            const response = await apiService.updateUserProfile({
-                firebase_token: token,
-                parent,
-                child,
-                system_prompt: systemPrompt,
-            });
-
+            console.log('✅ User profile updated successfully');
             return response.profile;
         } catch (error: any) {
+            console.error('❌ Profile update failed:', error);
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+export const updateSystemPrompt = createAsyncThunk(
+    'user/updateSystemPrompt',
+    async ({ systemPrompt }: { systemPrompt: string }, { getState, rejectWithValue, dispatch }) => {
+        try {
+            console.log('🔄 Updating system prompt...');
+
+            const response = await makeAuthenticatedRequest(
+                (token) => apiService.updateSystemPrompt({
+                    firebase_token: token,
+                    system_prompt: systemPrompt,
+                }),
+                getState,
+                dispatch
+            );
+
+            if (!response.success) {
+                throw new Error(response.message || 'System prompt update failed');
+            }
+
+            // Also update the user profile with the new system prompt
+            const state = getState() as RootState;
+            const currentProfile = state.user.profile;
+            if (currentProfile) {
+                const updatedProfile = {
+                    ...currentProfile,
+                    system_prompt: systemPrompt,
+                    updated_at: new Date().toISOString(),
+                };
+                return updatedProfile;
+            }
+
+            console.log('✅ System prompt updated successfully');
+            return null;
+        } catch (error: any) {
+            console.error('❌ System prompt update failed:', error);
             return rejectWithValue(error.message);
         }
     }
@@ -126,6 +221,9 @@ const userSlice = createSlice({
         },
         clearUserProfile: (state) => {
             state.profile = null;
+        },
+        setUserProfile: (state, action: PayloadAction<UserProfile>) => {
+            state.profile = action.payload;
         },
     },
     extraReducers: (builder) => {
@@ -171,9 +269,25 @@ const userSlice = createSlice({
             .addCase(updateUserProfile.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+            })
+            // Update System Prompt
+            .addCase(updateSystemPrompt.pending, (state) => {
+                state.isLoading = true;
+                state.error = null;
+            })
+            .addCase(updateSystemPrompt.fulfilled, (state, action) => {
+                state.isLoading = false;
+                if (action.payload) {
+                    state.profile = action.payload;
+                }
+                state.error = null;
+            })
+            .addCase(updateSystemPrompt.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
             });
     },
 });
 
-export const { clearUserError, clearUserProfile } = userSlice.actions;
+export const { clearUserError, clearUserProfile, setUserProfile } = userSlice.actions;
 export default userSlice.reducer;

@@ -1,4 +1,4 @@
-// File: app/auth/setup-profile.tsx
+// File: app/auth/setup-profile.tsx - Fixed with proper navigation
 import React, { useState } from 'react';
 import {
     View,
@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
 import { useAppDispatch, useAppSelector } from '@/hooks';
 import { registerUser } from '@/store/slices/userSlice';
+import { updateProfileStatus } from '@/store/slices/authSlice';
 import { BearIcon } from '@/components/BearIcon';
 import { Plus, X } from 'lucide-react-native';
 
@@ -67,7 +68,9 @@ export default function SetupProfileScreen() {
         }
 
         try {
-            await dispatch(registerUser({
+            console.log('🔄 Setting up profile...');
+
+            const result = await dispatch(registerUser({
                 parent: {
                     name: parentName,
                     email: parentEmail,
@@ -80,12 +83,29 @@ export default function SetupProfileScreen() {
                 },
             })).unwrap();
 
+            console.log('✅ Profile setup successful:', result);
+
+            // Update the auth state to reflect profile creation
+            dispatch(updateProfileStatus(true));
+
+            // Show success message and navigate
             Alert.alert(
                 'Profile Created!',
                 'Your profile has been set up successfully.',
-                [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+                [
+                    {
+                        text: 'Continue',
+                        onPress: () => {
+                            console.log('🚀 Navigating to home...');
+                            // Use replace to prevent going back to setup
+                            router.replace('/(tabs)');
+                        }
+                    }
+                ]
             );
+
         } catch (error) {
+            console.error('❌ Profile setup failed:', error);
             Alert.alert('Setup Failed', error as string);
         }
     };

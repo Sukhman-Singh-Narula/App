@@ -1,4 +1,4 @@
-// File: store/slices/authSlice.ts - Simplified auth slice to avoid Firebase conflicts
+// File: store/slices/authSlice.ts - Fixed with token refresh handling
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
@@ -58,6 +58,50 @@ const toSerializableUser = (firebaseUser: any): SerializableUser => {
     };
 };
 
+// Helper function to refresh token
+const refreshFirebaseToken = async (): Promise<string | null> => {
+    try {
+        const firebaseAuth = await initFirebaseAuth();
+        if (!firebaseAuth || !firebaseAuth.currentUser) {
+            return null;
+        }
+
+        console.log('🔄 Refreshing Firebase token...');
+        const newToken = await firebaseAuth.currentUser.getIdToken(true); // Force refresh
+
+        // Update stored token
+        const expiry = Date.now() + TOKEN_EXPIRY_MS;
+        await AsyncStorage.setItem('authToken', newToken);
+        await AsyncStorage.setItem('tokenExpiry', expiry.toString());
+
+        console.log('✅ Token refreshed successfully');
+        return newToken;
+    } catch (error) {
+        console.error('❌ Token refresh failed:', error);
+        return null;
+    }
+};
+
+export const refreshToken = createAsyncThunk(
+    'auth/refreshToken',
+    async (_, { rejectWithValue }) => {
+        try {
+            const newToken = await refreshFirebaseToken();
+            if (!newToken) {
+                throw new Error('Failed to refresh token');
+            }
+
+            const expiry = Date.now() + TOKEN_EXPIRY_MS;
+            return {
+                token: newToken,
+                tokenExpiry: expiry,
+            };
+        } catch (error: any) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
 export const signInWithEmail = createAsyncThunk(
     'auth/signInWithEmail',
     async ({ email, password }: { email: string; password: string }, { rejectWithValue }) => {
@@ -74,14 +118,15 @@ export const signInWithEmail = createAsyncThunk(
 
             const token = await userCredential.user.getIdToken();
 
-            // Try to verify with backend
+            // Verify with backend using the harmonized format
             let hasProfile = false;
             try {
                 const response = await apiService.verifyToken(token);
                 hasProfile = response.has_profile;
-                console.log('✅ Backend verification successful');
+                console.log('✅ Backend verification successful, hasProfile:', hasProfile);
             } catch (apiError) {
                 console.warn('⚠️ Backend verification failed:', apiError);
+                // Continue without backend verification for now
             }
 
             // Store token with expiry
@@ -109,6 +154,8 @@ export const signInWithEmail = createAsyncThunk(
                 errorMessage = 'Too many failed attempts. Please try again later';
             } else if (error.code === 'auth/network-request-failed') {
                 errorMessage = 'Network error. Please check your internet connection';
+            } else if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+                errorMessage = 'Unable to connect to server. Please check your internet connection.';
             }
 
             return rejectWithValue(errorMessage);
@@ -141,7 +188,7 @@ export const signUpWithEmail = createAsyncThunk(
                 user: toSerializableUser(userCredential.user),
                 token,
                 tokenExpiry: expiry,
-                hasProfile: false,
+                hasProfile: false, // New users don't have profile yet
             };
         } catch (error: any) {
             console.error('❌ Sign up failed:', error);
@@ -184,7 +231,7 @@ export const signOut = createAsyncThunk(
 
 export const checkTokenValidity = createAsyncThunk(
     'auth/checkTokenValidity',
-    async (_, { rejectWithValue }) => {
+    async (_, { rejectWithValue, dispatch }) => {
         try {
             const storedToken = await AsyncStorage.getItem('authToken');
             const storedExpiry = await AsyncStorage.getItem('tokenExpiry');
@@ -196,34 +243,61 @@ export const checkTokenValidity = createAsyncThunk(
             const expiry = parseInt(storedExpiry);
             const now = Date.now();
 
+            // If token is expired, try to refresh it
             if (now > expiry) {
-                await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
-                return rejectWithValue('Token expired');
+                console.log('🔄 Token expired, attempting refresh...');
+                const refreshResult = await dispatch(refreshToken()).unwrap();
+
+                // Use the refreshed token
+                const response = await apiService.verifyToken(refreshResult.token);
+
+                return {
+                    token: refreshResult.token,
+                    tokenExpiry: refreshResult.tokenExpiry,
+                    hasProfile: response.has_profile,
+                    user: response.user_info,
+                };
             }
 
-            // Try to verify with backend
-            let hasProfile = false;
-            let userInfo = null;
-
+            // Token is still valid, verify with backend
             try {
                 const response = await apiService.verifyToken(storedToken);
                 if (response.valid) {
-                    hasProfile = response.has_profile;
-                    userInfo = response.user_info;
+                    console.log('✅ Token verification successful, hasProfile:', response.has_profile);
+                    return {
+                        token: storedToken,
+                        tokenExpiry: expiry,
+                        hasProfile: response.has_profile,
+                        user: response.user_info,
+                    };
                 } else {
                     await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
                     return rejectWithValue('Invalid token');
                 }
-            } catch (apiError) {
-                console.warn('⚠️ Backend token verification failed:', apiError);
-            }
+            } catch (apiError: any) {
+                // If it's a token expired error, try to refresh
+                if (apiError.message.includes('Token expired')) {
+                    console.log('🔄 Server says token expired, attempting refresh...');
+                    const refreshResult = await dispatch(refreshToken()).unwrap();
 
-            return {
-                token: storedToken,
-                tokenExpiry: expiry,
-                hasProfile,
-                user: userInfo,
-            };
+                    const response = await apiService.verifyToken(refreshResult.token);
+                    return {
+                        token: refreshResult.token,
+                        tokenExpiry: refreshResult.tokenExpiry,
+                        hasProfile: response.has_profile,
+                        user: response.user_info,
+                    };
+                }
+
+                console.warn('⚠️ Backend token verification failed:', apiError);
+                // Continue with stored token for offline capability
+                return {
+                    token: storedToken,
+                    tokenExpiry: expiry,
+                    hasProfile: false,
+                    user: null,
+                };
+            }
         } catch (error: any) {
             return rejectWithValue(error.message);
         }
@@ -243,13 +317,28 @@ const authSlice = createSlice({
         },
         updateProfileStatus: (state, action: PayloadAction<boolean>) => {
             state.hasProfile = action.payload;
+            console.log('📝 Profile status updated:', action.payload);
         },
         resetAuth: (state) => {
             return initialState;
         },
+        updateToken: (state, action: PayloadAction<{ token: string; tokenExpiry: number }>) => {
+            state.token = action.payload.token;
+            state.tokenExpiry = action.payload.tokenExpiry;
+        },
     },
     extraReducers: (builder) => {
         builder
+            // Refresh Token
+            .addCase(refreshToken.fulfilled, (state, action) => {
+                state.token = action.payload.token;
+                state.tokenExpiry = action.payload.tokenExpiry;
+                state.error = null;
+            })
+            .addCase(refreshToken.rejected, (state) => {
+                // If refresh fails, sign out the user
+                return initialState;
+            })
             // Sign In
             .addCase(signInWithEmail.pending, (state) => {
                 state.isLoading = true;
@@ -300,6 +389,9 @@ const authSlice = createSlice({
                 state.tokenExpiry = action.payload.tokenExpiry;
                 state.hasProfile = action.payload.hasProfile;
                 state.error = null;
+                if (action.payload.user) {
+                    state.user = action.payload.user;
+                }
             })
             .addCase(checkTokenValidity.rejected, (state) => {
                 state.isAuthenticated = false;
@@ -311,5 +403,5 @@ const authSlice = createSlice({
     },
 });
 
-export const { clearError, setUser, updateProfileStatus, resetAuth } = authSlice.actions;
+export const { clearError, setUser, updateProfileStatus, resetAuth, updateToken } = authSlice.actions;
 export default authSlice.reducer;

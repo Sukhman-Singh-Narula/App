@@ -1,4 +1,4 @@
-// File: services/apiService.ts
+// File: services/apiService.ts (Harmonized with server endpoints)
 import { API_BASE_URL } from '../config/constants';
 
 export interface ApiResponse<T = any> {
@@ -19,6 +19,13 @@ export interface VerifyTokenResponse {
     has_profile: boolean;
     profile?: any;
     error?: string;
+}
+
+export interface AuthResponse {
+    success: boolean;
+    message: string;
+    user_id: string;
+    profile?: any;
 }
 
 export interface UserRegistrationData {
@@ -61,6 +68,17 @@ export interface SystemPromptUpdateData {
     system_prompt: string;
 }
 
+export interface StoryManifest {
+    story_id: string;
+    title: string;
+    total_duration: number;
+    segments: Array<{
+        type: 'audio' | 'image';
+        url: string;
+        start: number;
+    }>;
+}
+
 class ApiService {
     private baseUrl: string;
 
@@ -76,77 +94,92 @@ class ApiService {
 
         const defaultHeaders = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             ...options.headers,
         };
 
         try {
+            console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+
             const response = await fetch(url, {
                 ...options,
                 headers: defaultHeaders,
             });
 
+            console.log(`📡 Response Status: ${response.status} ${response.statusText}`);
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch {
+                    errorData = { detail: `HTTP error! status: ${response.status}` };
+                }
+
+                const errorMessage = errorData.detail || errorData.message || `HTTP error! status: ${response.status}`;
+                console.error(`❌ API Error:`, errorMessage);
+                throw new Error(errorMessage);
             }
 
-            return await response.json();
+            const data = await response.json();
+            console.log(`✅ API Success:`, data);
+            return data;
         } catch (error) {
-            console.error(`API request failed for ${endpoint}:`, error);
+            console.error(`🚨 API request failed for ${endpoint}:`, error);
             throw error;
         }
     }
 
-    // Auth endpoints
+    // Auth endpoints - Updated to match server format
     async verifyToken(token: string): Promise<VerifyTokenResponse> {
         return this.makeRequest<VerifyTokenResponse>('/auth/verify-token', {
             method: 'POST',
-            body: JSON.stringify({ firebase_token: token }),
+            body: JSON.stringify(token), // Server expects just the token string
         });
     }
 
-    async registerUser(data: UserRegistrationData): Promise<any> {
-        return this.makeRequest('/auth/register', {
+    async registerUser(data: UserRegistrationData): Promise<AuthResponse> {
+        return this.makeRequest<AuthResponse>('/auth/register', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     }
 
-    async getUserProfile(token: string): Promise<any> {
+    async getUserProfile(token: string): Promise<{ success: boolean; user_id: string; profile: any }> {
         return this.makeRequest(`/auth/profile/${token}`, {
             method: 'GET',
         });
     }
 
-    async updateUserProfile(data: UserProfileUpdateData): Promise<any> {
-        return this.makeRequest('/auth/profile', {
+    async updateUserProfile(data: UserProfileUpdateData): Promise<AuthResponse> {
+        return this.makeRequest<AuthResponse>('/auth/profile', {
             method: 'PUT',
             body: JSON.stringify(data),
         });
     }
 
-    async deleteUserProfile(token: string): Promise<any> {
+    async deleteUserProfile(token: string): Promise<{ success: boolean; message: string; user_id: string }> {
         return this.makeRequest(`/auth/profile/${token}`, {
             method: 'DELETE',
         });
     }
 
-    // Story endpoints
-    async generateStory(data: StoryGenerationData): Promise<any> {
-        return this.makeRequest('/generate-story', {
+    // Story endpoints - Updated to match server format
+    async generateStory(data: StoryGenerationData): Promise<StoryManifest> {
+        return this.makeRequest<StoryManifest>('/stories/generate', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     }
 
-    async getUserStories(token: string): Promise<any> {
+    async getUserStories(token: string): Promise<{ stories: any[] }> {
         return this.makeRequest(`/stories/${token}`, {
             method: 'GET',
         });
     }
 
-    async updateSystemPrompt(data: SystemPromptUpdateData): Promise<any> {
-        return this.makeRequest('/system-prompt', {
+    async updateSystemPrompt(data: SystemPromptUpdateData): Promise<{ success: boolean; message: string; user_id: string }> {
+        return this.makeRequest('/stories/system-prompt', {
             method: 'POST',
             body: JSON.stringify(data),
         });

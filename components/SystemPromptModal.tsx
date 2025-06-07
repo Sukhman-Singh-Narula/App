@@ -1,4 +1,4 @@
-// File: components/SystemPromptModal.tsx (Updated with Redux)
+// File: components/SystemPromptModal.tsx (Harmonized with Redux and server API)
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -16,7 +16,7 @@ import {
 import { COLORS } from '@/constants/Colors';
 import { MessageSquare, X } from 'lucide-react-native';
 import { useAppDispatch, useAppSelector } from '@/hooks';
-import { updateUserProfile } from '@/store/slices/userSlice';
+import { updateSystemPrompt } from '@/store/slices/userSlice';
 
 interface SystemPromptModalProps {
   visible: boolean;
@@ -41,13 +41,16 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
     }
 
     try {
-      await dispatch(updateUserProfile({
-        system_prompt: systemPrompt,
+      console.log('🔄 Updating system prompt...');
+
+      await dispatch(updateSystemPrompt({
+        systemPrompt: systemPrompt.trim(),
       })).unwrap();
 
       Alert.alert('Success', 'System prompt updated successfully!');
       onClose();
     } catch (error) {
+      console.error('❌ System prompt update failed:', error);
       Alert.alert('Update Failed', error as string);
     }
   };
@@ -56,12 +59,20 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
     Keyboard.dismiss();
   };
 
+  const handleClose = () => {
+    // Reset to original value when closing without saving
+    if (profile) {
+      setSystemPrompt(profile.system_prompt || '');
+    }
+    onClose();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <KeyboardAvoidingView
@@ -71,7 +82,7 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
           <View style={styles.modalContainer}>
             <View style={styles.header}>
               <Text style={styles.title}>Update System Prompt</Text>
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <X size={20} color={COLORS.gray[500]} />
               </TouchableOpacity>
             </View>
@@ -88,19 +99,24 @@ export default function SystemPromptModal({ visible, onClose }: SystemPromptModa
               <Text style={styles.label}>System Prompt</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your custom system prompt"
+                placeholder="Enter your custom system prompt..."
                 value={systemPrompt}
                 onChangeText={setSystemPrompt}
                 multiline
-                numberOfLines={4}
+                numberOfLines={6}
                 textAlignVertical="top"
+                maxLength={2000}
               />
+              <Text style={styles.characterCount}>
+                {systemPrompt.length}/2000 characters
+              </Text>
             </View>
 
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={onClose}
+                onPress={handleClose}
+                disabled={isLoading}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
@@ -133,7 +149,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    width: '85%',
+    width: '90%',
+    maxHeight: '80%',
     backgroundColor: COLORS.white,
     borderRadius: 20,
     padding: 24,
@@ -173,40 +190,49 @@ const styles = StyleSheet.create({
     color: COLORS.gray[600],
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 20,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontFamily: 'Nunito-SemiBold',
     fontSize: 14,
     color: COLORS.gray[700],
-    marginBottom: 6,
+    marginBottom: 8,
   },
   input: {
-    minHeight: 120,
+    minHeight: 140,
+    maxHeight: 200,
     borderWidth: 1,
     borderColor: COLORS.gray[300],
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     fontFamily: 'Nunito-Regular',
     fontSize: 16,
     color: COLORS.gray[800],
+    lineHeight: 22,
+  },
+  characterCount: {
+    fontFamily: 'Nunito-Regular',
+    fontSize: 12,
+    color: COLORS.gray[500],
+    textAlign: 'right',
+    marginTop: 4,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
   cancelButton: {
     flex: 1,
-    height: 48,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
     borderWidth: 1,
     borderColor: COLORS.gray[300],
-    borderRadius: 8,
+    borderRadius: 12,
   },
   cancelButtonText: {
     fontFamily: 'Nunito-SemiBold',
@@ -215,12 +241,12 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     flex: 1,
-    height: 48,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
     backgroundColor: COLORS.primary[600],
-    borderRadius: 8,
+    borderRadius: 12,
   },
   updateButtonDisabled: {
     backgroundColor: COLORS.gray[300],

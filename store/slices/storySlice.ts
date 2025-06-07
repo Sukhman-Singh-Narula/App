@@ -1,18 +1,7 @@
-// File: store/slices/storySlice.ts
+// File: store/slices/storySlice.ts - Harmonized with server API format
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { apiService } from '../../services/apiService';
+import { apiService, StoryManifest } from '../../services/apiService';
 import { RootState } from '../store';
-
-export interface StoryManifest {
-    story_id: string;
-    title: string;
-    total_duration: number;
-    segments: Array<{
-        type: 'audio' | 'image';
-        url: string;
-        start: number;
-    }>;
-}
 
 export interface Story {
     story_id: string;
@@ -41,6 +30,8 @@ export const fetchUserStories = createAsyncThunk(
     'story/fetchUserStories',
     async (_, { getState, rejectWithValue }) => {
         try {
+            console.log('🔄 Fetching user stories...');
+
             const state = getState() as RootState;
             const token = state.auth.token;
 
@@ -49,8 +40,11 @@ export const fetchUserStories = createAsyncThunk(
             }
 
             const response = await apiService.getUserStories(token);
+
+            console.log('✅ User stories fetched successfully');
             return response.stories;
         } catch (error: any) {
+            console.error('❌ Failed to fetch user stories:', error);
             return rejectWithValue(error.message);
         }
     }
@@ -60,6 +54,8 @@ export const generateStory = createAsyncThunk(
     'story/generateStory',
     async ({ prompt }: { prompt: string }, { getState, rejectWithValue }) => {
         try {
+            console.log('🔄 Generating story with prompt:', prompt);
+
             const state = getState() as RootState;
             const token = state.auth.token;
 
@@ -72,9 +68,24 @@ export const generateStory = createAsyncThunk(
                 prompt,
             });
 
+            console.log('✅ Story generated successfully:', response.title);
             return response;
         } catch (error: any) {
-            return rejectWithValue(error.message);
+            console.error('❌ Story generation failed:', error);
+
+            // Provide more user-friendly error messages
+            let errorMessage = error.message;
+            if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+                errorMessage = 'Unable to connect to server. Please check your internet connection.';
+            } else if (error.message.includes('500')) {
+                errorMessage = 'Story generation service is currently unavailable. Please try again later.';
+            } else if (error.message.includes('503')) {
+                errorMessage = 'Story generation service is temporarily unavailable. Please try again later.';
+            } else if (error.message.includes('Firebase service is not available')) {
+                errorMessage = 'Authentication service is currently unavailable. Please try again later.';
+            }
+
+            return rejectWithValue(errorMessage);
         }
     }
 );
@@ -92,6 +103,11 @@ const storySlice = createSlice({
         clearCurrentStory: (state) => {
             state.currentStory = null;
         },
+        addStoryToList: (state, action) => {
+            // Add a new story to the beginning of the list
+            const newStory = action.payload;
+            state.stories.unshift(newStory);
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -102,7 +118,7 @@ const storySlice = createSlice({
             })
             .addCase(fetchUserStories.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.stories = action.payload;
+                state.stories = action.payload || [];
                 state.error = null;
             })
             .addCase(fetchUserStories.rejected, (state, action) => {
@@ -118,6 +134,15 @@ const storySlice = createSlice({
                 state.isGenerating = false;
                 state.currentStory = action.payload;
                 state.error = null;
+
+                // Also add to stories list
+                const newStory: Story = {
+                    story_id: action.payload.story_id,
+                    title: action.payload.title,
+                    created_at: new Date().toISOString(),
+                    manifest: action.payload,
+                };
+                state.stories.unshift(newStory);
             })
             .addCase(generateStory.rejected, (state, action) => {
                 state.isGenerating = false;
@@ -126,5 +151,5 @@ const storySlice = createSlice({
     },
 });
 
-export const { clearStoryError, setCurrentStory, clearCurrentStory } = storySlice.actions;
+export const { clearStoryError, setCurrentStory, clearCurrentStory, addStoryToList } = storySlice.actions;
 export default storySlice.reducer;
