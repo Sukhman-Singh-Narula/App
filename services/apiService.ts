@@ -1,4 +1,4 @@
-// File: services/apiService.ts (Harmonized with server endpoints)
+// File: services/apiService.ts - Enhanced debugging version
 import { API_BASE_URL } from '../config/constants';
 
 export interface ApiResponse<T = any> {
@@ -100,6 +100,23 @@ class ApiService {
 
         try {
             console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+            console.log('📦 Request Headers:', defaultHeaders);
+
+            if (options.body) {
+                console.log('📦 Request Body (raw):', options.body);
+                console.log('📦 Request Body (type):', typeof options.body);
+                console.log('📦 Request Body (length):', options.body.length);
+
+                // Try to parse and log the JSON
+                try {
+                    const parsedBody = JSON.parse(options.body as string);
+                    console.log('📦 Request Body (parsed):', parsedBody);
+                } catch (e) {
+                    console.log('📦 Request Body (not JSON):', options.body);
+                }
+            } else {
+                console.log('📦 No request body');
+            }
 
             const response = await fetch(url, {
                 ...options,
@@ -107,13 +124,18 @@ class ApiService {
             });
 
             console.log(`📡 Response Status: ${response.status} ${response.statusText}`);
+            console.log('📡 Response Headers:', Object.fromEntries(response.headers.entries()));
+
+            const responseText = await response.text();
+            console.log('📡 Response Body (raw):', responseText);
 
             if (!response.ok) {
                 let errorData;
                 try {
-                    errorData = await response.json();
+                    errorData = JSON.parse(responseText);
+                    console.log('📄 Error Response Body (parsed):', errorData);
                 } catch {
-                    errorData = { detail: `HTTP error! status: ${response.status}` };
+                    errorData = { detail: responseText || `HTTP error! status: ${response.status}` };
                 }
 
                 const errorMessage = errorData.detail || errorData.message || `HTTP error! status: ${response.status}`;
@@ -121,7 +143,7 @@ class ApiService {
                 throw new Error(errorMessage);
             }
 
-            const data = await response.json();
+            const data = JSON.parse(responseText);
             console.log(`✅ API Success:`, data);
             return data;
         } catch (error) {
@@ -130,11 +152,21 @@ class ApiService {
         }
     }
 
-    // Auth endpoints - Updated to match server format
+    // Auth endpoints - Enhanced debugging for token verification
     async verifyToken(token: string): Promise<VerifyTokenResponse> {
+        console.log('🔍 verifyToken called with token:', token?.substring(0, 20) + '...');
+
+        const requestBody = {
+            firebase_token: token
+        };
+
+        console.log('🔍 Creating request body:', requestBody);
+        const jsonBody = JSON.stringify(requestBody);
+        console.log('🔍 JSON body:', jsonBody);
+
         return this.makeRequest<VerifyTokenResponse>('/auth/verify-token', {
             method: 'POST',
-            body: JSON.stringify(token), // Server expects just the token string
+            body: jsonBody,
         });
     }
 
@@ -189,6 +221,35 @@ class ApiService {
     async healthCheck(): Promise<any> {
         return this.makeRequest('/health', {
             method: 'GET',
+        });
+    }
+
+    // DEBUG METHODS - Add these for testing
+    async testSimple(): Promise<any> {
+        return this.makeRequest('/auth/test-simple', {
+            method: 'POST',
+        });
+    }
+
+    async testEcho(token: string): Promise<any> {
+        const requestBody = {
+            firebase_token: token
+        };
+
+        return this.makeRequest('/auth/test-echo', {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
+        });
+    }
+
+    async verifyTokenRaw(token: string): Promise<any> {
+        const requestBody = {
+            firebase_token: token
+        };
+
+        return this.makeRequest('/auth/verify-token-debug', {
+            method: 'POST',
+            body: JSON.stringify(requestBody),
         });
     }
 }

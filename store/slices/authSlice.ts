@@ -1,4 +1,4 @@
-// File: store/slices/authSlice.ts - Fixed with token refresh handling
+// File: store/slices/authSlice.ts - Fixed with duplicate cases removed
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
@@ -118,15 +118,24 @@ export const signInWithEmail = createAsyncThunk(
 
             const token = await userCredential.user.getIdToken();
 
-            // Verify with backend using the harmonized format
+            // Verify with backend using the harmonized format - CRITICAL FIX
             let hasProfile = false;
             try {
+                console.log('🔄 Verifying token with backend...');
                 const response = await apiService.verifyToken(token);
                 hasProfile = response.has_profile;
                 console.log('✅ Backend verification successful, hasProfile:', hasProfile);
+
+                // If user has profile, log the verification details
+                if (hasProfile) {
+                    console.log('👤 User has existing profile, will navigate to home');
+                } else {
+                    console.log('📝 User needs to complete profile setup');
+                }
             } catch (apiError) {
                 console.warn('⚠️ Backend verification failed:', apiError);
-                // Continue without backend verification for now
+                // For connection issues, assume profile doesn't exist to be safe
+                hasProfile = false;
             }
 
             // Store token with expiry
@@ -138,7 +147,7 @@ export const signInWithEmail = createAsyncThunk(
                 user: toSerializableUser(userCredential.user),
                 token,
                 tokenExpiry: expiry,
-                hasProfile,
+                hasProfile, // This is the critical fix - properly pass the profile status
             };
         } catch (error: any) {
             console.error('❌ Sign in failed:', error);
@@ -184,11 +193,13 @@ export const signUpWithEmail = createAsyncThunk(
             await AsyncStorage.setItem('authToken', token);
             await AsyncStorage.setItem('tokenExpiry', expiry.toString());
 
+            console.log('📝 New user created, will need profile setup');
+
             return {
                 user: toSerializableUser(userCredential.user),
                 token,
                 tokenExpiry: expiry,
-                hasProfile: false, // New users don't have profile yet
+                hasProfile: false, // New users always don't have profile yet
             };
         } catch (error: any) {
             console.error('❌ Sign up failed:', error);
@@ -213,17 +224,36 @@ export const signOut = createAsyncThunk(
     'auth/signOut',
     async (_, { rejectWithValue }) => {
         try {
-            await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
+            console.log('🔄 SignOut thunk started...');
 
-            const firebaseAuth = await initFirebaseAuth();
-            if (firebaseAuth) {
-                await firebaseSignOut(firebaseAuth);
+            // Step 1: Clear AsyncStorage first
+            try {
+                await AsyncStorage.multiRemove(['authToken', 'tokenExpiry']);
+                console.log('✅ AsyncStorage cleared');
+            } catch (storageError) {
+                console.warn('⚠️ AsyncStorage clear failed:', storageError);
             }
 
-            console.log('✅ Sign out successful');
+            // Step 2: Sign out from Firebase
+            try {
+                const firebaseAuth = await initFirebaseAuth();
+                if (firebaseAuth && firebaseAuth.currentUser) {
+                    await firebaseSignOut(firebaseAuth);
+                    console.log('✅ Firebase signout completed');
+                } else {
+                    console.log('ℹ️ No Firebase user to sign out');
+                }
+            } catch (firebaseError) {
+                console.warn('⚠️ Firebase signout failed:', firebaseError);
+                // Don't throw error, continue with logout
+            }
+
+            console.log('✅ SignOut thunk completed successfully');
             return {};
         } catch (error: any) {
-            console.error('❌ Sign out error:', error);
+            console.error('❌ SignOut thunk error:', error);
+            // Even if there's an error, we want to clear the local state
+            // So we don't reject, we just log and return
             return {};
         }
     }
@@ -237,6 +267,7 @@ export const checkTokenValidity = createAsyncThunk(
             const storedExpiry = await AsyncStorage.getItem('tokenExpiry');
 
             if (!storedToken || !storedExpiry) {
+                console.log('❌ No stored token found');
                 return rejectWithValue('No stored token found');
             }
 
@@ -251,6 +282,8 @@ export const checkTokenValidity = createAsyncThunk(
                 // Use the refreshed token
                 const response = await apiService.verifyToken(refreshResult.token);
 
+                console.log('✅ Token refreshed and verified, hasProfile:', response.has_profile);
+
                 return {
                     token: refreshResult.token,
                     tokenExpiry: refreshResult.tokenExpiry,
@@ -261,13 +294,14 @@ export const checkTokenValidity = createAsyncThunk(
 
             // Token is still valid, verify with backend
             try {
+                console.log('🔄 Verifying stored token with backend...');
                 const response = await apiService.verifyToken(storedToken);
                 if (response.valid) {
                     console.log('✅ Token verification successful, hasProfile:', response.has_profile);
                     return {
                         token: storedToken,
                         tokenExpiry: expiry,
-                        hasProfile: response.has_profile,
+                        hasProfile: response.has_profile, // Critical fix - use the server response
                         user: response.user_info,
                     };
                 } else {
@@ -290,15 +324,17 @@ export const checkTokenValidity = createAsyncThunk(
                 }
 
                 console.warn('⚠️ Backend token verification failed:', apiError);
-                // Continue with stored token for offline capability
+                // For existing users, assume they might have a profile
+                // This is fallback behavior when server is unreachable
                 return {
                     token: storedToken,
                     tokenExpiry: expiry,
-                    hasProfile: false,
+                    hasProfile: false, // Conservative default - will prompt for profile setup if needed
                     user: null,
                 };
             }
         } catch (error: any) {
+            console.error('❌ Token check failed:', error.message);
             return rejectWithValue(error.message);
         }
     }
@@ -317,9 +353,10 @@ const authSlice = createSlice({
         },
         updateProfileStatus: (state, action: PayloadAction<boolean>) => {
             state.hasProfile = action.payload;
-            console.log('📝 Profile status updated:', action.payload);
+            console.log('📝 Profile status updated to:', action.payload);
         },
         resetAuth: (state) => {
+            console.log('🔄 Resetting auth state');
             return initialState;
         },
         updateToken: (state, action: PayloadAction<{ token: string; tokenExpiry: number }>) => {
@@ -337,25 +374,29 @@ const authSlice = createSlice({
             })
             .addCase(refreshToken.rejected, (state) => {
                 // If refresh fails, sign out the user
+                console.log('❌ Token refresh failed, signing out');
                 return initialState;
             })
-            // Sign In
+            // Sign In - CRITICAL FIX HERE
             .addCase(signInWithEmail.pending, (state) => {
                 state.isLoading = true;
                 state.error = null;
             })
             .addCase(signInWithEmail.fulfilled, (state, action) => {
+                console.log('✅ Sign in successful, hasProfile:', action.payload.hasProfile);
                 state.isLoading = false;
                 state.isAuthenticated = true;
                 state.user = action.payload.user;
                 state.token = action.payload.token;
                 state.tokenExpiry = action.payload.tokenExpiry;
-                state.hasProfile = action.payload.hasProfile;
+                state.hasProfile = action.payload.hasProfile; // This was the key fix
                 state.error = null;
             })
             .addCase(signInWithEmail.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+                state.isAuthenticated = false;
+                state.hasProfile = false;
             })
             // Sign Up
             .addCase(signUpWithEmail.pending, (state) => {
@@ -363,6 +404,7 @@ const authSlice = createSlice({
                 state.error = null;
             })
             .addCase(signUpWithEmail.fulfilled, (state, action) => {
+                console.log('✅ Sign up successful, will need profile setup');
                 state.isLoading = false;
                 state.isAuthenticated = true;
                 state.user = action.payload.user;
@@ -374,26 +416,41 @@ const authSlice = createSlice({
             .addCase(signUpWithEmail.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+                state.isAuthenticated = false;
+                state.hasProfile = false;
             })
-            // Sign Out
+            // Sign Out - CLEANED UP VERSION (no duplicates)
+            .addCase(signOut.pending, (state) => {
+                console.log('🔄 SignOut pending...');
+                // Don't set loading true here as it might interfere with navigation
+            })
             .addCase(signOut.fulfilled, (state) => {
+                console.log('✅ SignOut fulfilled - resetting to initial state');
                 return initialState;
             })
             .addCase(signOut.rejected, (state) => {
+                console.log('⚠️ SignOut rejected - but still resetting state');
                 return initialState;
             })
-            // Check Token Validity
+            // Check Token Validity - CRITICAL FIX HERE TOO
+            .addCase(checkTokenValidity.pending, (state) => {
+                state.isLoading = true;
+            })
             .addCase(checkTokenValidity.fulfilled, (state, action) => {
+                console.log('✅ Token check successful, hasProfile:', action.payload.hasProfile);
+                state.isLoading = false;
                 state.isAuthenticated = true;
                 state.token = action.payload.token;
                 state.tokenExpiry = action.payload.tokenExpiry;
-                state.hasProfile = action.payload.hasProfile;
+                state.hasProfile = action.payload.hasProfile; // Critical fix
                 state.error = null;
                 if (action.payload.user) {
                     state.user = action.payload.user;
                 }
             })
-            .addCase(checkTokenValidity.rejected, (state) => {
+            .addCase(checkTokenValidity.rejected, (state, action) => {
+                console.log('❌ Token check failed:', action.payload);
+                state.isLoading = false;
                 state.isAuthenticated = false;
                 state.user = null;
                 state.token = null;

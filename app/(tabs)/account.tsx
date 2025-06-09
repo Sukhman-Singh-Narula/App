@@ -1,4 +1,4 @@
-// File: app/(tabs)/account.tsx - Fixed logout functionality
+// File: app/(tabs)/account.tsx - Nuclear logout version
 import React from 'react';
 import {
   View,
@@ -13,7 +13,7 @@ import { Link, useRouter } from 'expo-router';
 import { COLORS } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '@/hooks';
-import { signOut, resetAuth } from '@/store/slices/authSlice';
+import { resetAuth } from '@/store/slices/authSlice';
 import { clearUserProfile } from '@/store/slices/userSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -22,6 +22,65 @@ export default function AccountScreen() {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
   const { profile } = useAppSelector((state) => state.user);
+
+  const forceLogout = async () => {
+    console.log('🔴 NUCLEAR LOGOUT - Starting complete logout process...');
+    
+    try {
+      // Step 1: Clear ALL Redux state
+      console.log('💥 Nuking Redux state...');
+      dispatch(resetAuth());
+      dispatch(clearUserProfile());
+      
+      // Step 2: Completely wipe AsyncStorage
+      console.log('💥 Wiping AsyncStorage...');
+      await AsyncStorage.clear();
+      
+      // Step 3: Sign out from Firebase (with error handling)
+      console.log('💥 Firebase logout...');
+      try {
+        const { auth } = await import('@/config/firebase');
+        if (auth?.currentUser) {
+          const { signOut } = await import('firebase/auth');
+          await signOut(auth);
+          console.log('✅ Firebase logout successful');
+        }
+      } catch (firebaseError) {
+        console.warn('⚠️ Firebase logout failed, but continuing:', firebaseError);
+      }
+      
+      // Step 4: Force multiple navigation attempts
+      console.log('💥 Force navigation...');
+      
+      // Try immediate navigation
+      router.replace('/auth/login');
+      
+      // Backup navigation after delay
+      setTimeout(() => {
+        console.log('🔄 Backup navigation attempt...');
+        router.replace('/auth/login');
+      }, 100);
+      
+      // Final backup after longer delay
+      setTimeout(() => {
+        console.log('🔄 Final backup navigation attempt...');
+        router.replace('/auth/login');
+      }, 500);
+      
+      console.log('✅ Nuclear logout completed');
+      
+    } catch (error) {
+      console.error('❌ Nuclear logout error:', error);
+      
+      // Even if everything fails, try to navigate
+      router.replace('/auth/login');
+      
+      // Force navigation with multiple attempts
+      setTimeout(() => router.replace('/auth/login'), 100);
+      setTimeout(() => router.replace('/auth/login'), 500);
+      setTimeout(() => router.replace('/auth/login'), 1000);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -32,34 +91,7 @@ export default function AccountScreen() {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('🔄 Logging out...');
-
-              // Clear Redux state
-              dispatch(resetAuth());
-              dispatch(clearUserProfile());
-
-              // Clear AsyncStorage
-              await AsyncStorage.multiRemove([
-                'authToken',
-                'tokenExpiry',
-                'persist:root', // Clear persisted state
-              ]);
-
-              // Dispatch sign out action
-              await dispatch(signOut());
-
-              console.log('✅ Logout successful, redirecting to login');
-
-              // Navigate to login
-              router.replace('/auth/login');
-            } catch (error) {
-              console.error('❌ Logout error:', error);
-              // Force logout even if there's an error
-              router.replace('/auth/login');
-            }
-          }
+          onPress: forceLogout
         },
       ]
     );
@@ -156,7 +188,9 @@ export default function AccountScreen() {
           </Link>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+
+
+        <TouchableOpacity style={styles.logoutButton} onPress={forceLogout}>
           <Ionicons name="log-out" size={18} color={COLORS.error.default} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
@@ -267,6 +301,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.gray[800],
     flex: 1,
+  },
+  emergencyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626', // red-600
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 12,
+  },
+  emergencyText: {
+    fontFamily: 'Nunito-SemiBold',
+    fontSize: 14,
+    color: COLORS.white,
+    marginLeft: 8,
   },
   logoutButton: {
     flexDirection: 'row',

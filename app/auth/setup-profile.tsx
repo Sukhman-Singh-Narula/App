@@ -1,4 +1,4 @@
-// File: app/auth/setup-profile.tsx - Fixed with proper navigation
+// File: app/auth/setup-profile.tsx - Fixed with proper profile status update
 import React, { useState } from 'react';
 import {
     View,
@@ -68,7 +68,7 @@ export default function SetupProfileScreen() {
         }
 
         try {
-            console.log('🔄 Setting up profile...');
+            console.log('🔄 Setting up user profile...');
 
             const result = await dispatch(registerUser({
                 parent: {
@@ -85,7 +85,7 @@ export default function SetupProfileScreen() {
 
             console.log('✅ Profile setup successful:', result);
 
-            // Update the auth state to reflect profile creation
+            // CRITICAL FIX: Update the auth state to reflect profile creation
             dispatch(updateProfileStatus(true));
 
             // Show success message and navigate
@@ -96,9 +96,11 @@ export default function SetupProfileScreen() {
                     {
                         text: 'Continue',
                         onPress: () => {
-                            console.log('🚀 Navigating to home...');
+                            console.log('🚀 Profile setup complete, navigating to home...');
                             // Use replace to prevent going back to setup
-                            router.replace('/(tabs)');
+                            setTimeout(() => {
+                                router.replace('/(tabs)');
+                            }, 100);
                         }
                     }
                 ]

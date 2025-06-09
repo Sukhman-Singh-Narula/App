@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
 import { Bean as Bear } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 
