@@ -1,5 +1,5 @@
 // File: config/constants.ts
-export const API_BASE_URL = 'http://localhost:8000'; // Development server
+export const API_BASE_URL = 'http://0.0.0.0:8000'; // Development server
     
 
 export const STORAGE_KEYS = {
