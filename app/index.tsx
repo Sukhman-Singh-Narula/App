@@ -1,4 +1,4 @@
-// File: app/index.tsx - Fixed navigation logic with auth state monitoring
+// File: app/index.tsx - FIXED VERSION
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
@@ -6,52 +6,36 @@ import { useAuth } from '@/hooks/useAuth';
 import SplashScreenComponent from '@/components/SplashScreenComponent';
 
 export default function IndexScreen() {
-    const { isAuthenticated, hasProfile, isLoading } = useAuth();
+    const { isAuthenticated, hasProfile, isReady, needsProfileSetup, canNavigateToHome } = useAuth();
 
     useEffect(() => {
-        // Monitor auth state changes and navigate accordingly
-        const handleNavigation = () => {
-            if (!isLoading) {
-                console.log('🔍 Navigation check triggered:');
-                console.log(`   - isAuthenticated: ${isAuthenticated}`);
-                console.log(`   - hasProfile: ${hasProfile}`);
-                console.log(`   - isLoading: ${isLoading}`);
+        // Only navigate when auth is ready (initialized and not loading)
+        if (!isReady) {
+            console.log('⏳ Auth not ready yet, waiting...');
+            return;
+        }
 
-                if (isAuthenticated) {
-                    if (hasProfile) {
-                        console.log('🏠 User is authenticated with profile → Redirecting to HOME');
-                        router.replace('/(tabs)');
-                    } else {
-                        console.log('👤 User is authenticated but no profile → Redirecting to PROFILE SETUP');
-                        router.replace('/auth/setup-profile');
-                    }
-                } else {
-                    console.log('🔑 User not authenticated → Redirecting to LOGIN');
-                    router.replace('/auth/login');
-                }
-            } else {
-                console.log('⏳ Still loading authentication state...');
-            }
-        };
+        console.log('🔍 Auth is ready, making navigation decision:', {
+            isAuthenticated,
+            hasProfile,
+            needsProfileSetup,
+            canNavigateToHome,
+        });
 
-        // Initial navigation check
-        const timer = setTimeout(handleNavigation, 200);
-
-        return () => clearTimeout(timer);
-    }, [isAuthenticated, hasProfile, isLoading]);
-
-    // Also listen for real-time auth state changes (like logout)
-    useEffect(() => {
-        console.log('🔄 Auth state changed:', { isAuthenticated, hasProfile, isLoading });
-
-        // If user becomes unauthenticated (logout), immediately redirect
-        if (!isLoading && !isAuthenticated) {
-            console.log('🚪 User logged out, redirecting to login...');
+        // Simple, clear navigation logic
+        if (canNavigateToHome) {
+            console.log('🏠 Navigating to home (authenticated + has profile)');
+            router.replace('/(tabs)');
+        } else if (needsProfileSetup) {
+            console.log('👤 Navigating to profile setup (authenticated but no profile)');
+            router.replace('/auth/setup-profile');
+        } else {
+            console.log('🔑 Navigating to login (not authenticated)');
             router.replace('/auth/login');
         }
-    }, [isAuthenticated]);
+    }, [isReady, canNavigateToHome, needsProfileSetup]);
 
-    // Show splash screen while determining navigation
+    // Show splash screen until navigation decision is made
     return (
         <View style={styles.container}>
             <SplashScreenComponent />

@@ -1,4 +1,4 @@
-// File: store/slices/userSlice.ts - With token refresh support
+// File: store/slices/userSlice.ts - FIXED VERSION with better profile registration handling
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { apiService } from '../../services/apiService';
 import { RootState } from '../store';
@@ -119,15 +119,19 @@ export const registerUser = createAsyncThunk(
                 dispatch
             );
 
-            if (!response.success) {
+            // FIXED: Handle both new registration and existing profile cases
+            if (response.success) {
+                console.log('✅ User registration/profile retrieval successful');
+
+                // Update auth state to reflect profile existence
+                dispatch({ type: 'auth/updateProfileStatus', payload: true });
+
+                return response.profile;
+            } else {
+                // This case should not happen with the fixed server code
                 throw new Error(response.message || 'Registration failed');
             }
 
-            // Update auth state to reflect profile creation
-            dispatch({ type: 'auth/updateProfileStatus', payload: true });
-
-            console.log('✅ User registered successfully');
-            return response.profile;
         } catch (error: any) {
             console.error('❌ User registration failed:', error);
             return rejectWithValue(error.message);
@@ -242,17 +246,19 @@ const userSlice = createSlice({
                 state.isLoading = false;
                 state.error = action.payload as string;
             })
-            // Register User
+            // Register User - FIXED to handle existing profiles
             .addCase(registerUser.pending, (state) => {
                 state.isLoading = true;
                 state.error = null;
             })
             .addCase(registerUser.fulfilled, (state, action) => {
+                console.log('✅ Registration fulfilled - profile:', action.payload?.user_id);
                 state.isLoading = false;
                 state.profile = action.payload;
                 state.error = null;
             })
             .addCase(registerUser.rejected, (state, action) => {
+                console.log('❌ Registration rejected:', action.payload);
                 state.isLoading = false;
                 state.error = action.payload as string;
             })

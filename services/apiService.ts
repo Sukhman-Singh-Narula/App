@@ -154,20 +154,37 @@ class ApiService {
 
     // Auth endpoints - Enhanced debugging for token verification
     async verifyToken(token: string): Promise<VerifyTokenResponse> {
-        console.log('🔍 verifyToken called with token:', token?.substring(0, 20) + '...');
+        console.log('🔍 apiService.verifyToken: Method called');
+        console.log('🔍 apiService.verifyToken: Token provided:', token ? 'YES' : 'NO');
+        console.log('🔍 apiService.verifyToken: Token length:', token?.length || 0);
+        console.log('🔍 apiService.verifyToken: Token (first 20 chars):', token?.substring(0, 20) + '...');
 
         const requestBody = {
             firebase_token: token
         };
 
-        console.log('🔍 Creating request body:', requestBody);
+        console.log('🔍 apiService.verifyToken: Creating request body:', requestBody);
         const jsonBody = JSON.stringify(requestBody);
-        console.log('🔍 JSON body:', jsonBody);
+        console.log('🔍 apiService.verifyToken: JSON body:', jsonBody);
+        console.log('🔍 apiService.verifyToken: About to call makeRequest...');
 
-        return this.makeRequest<VerifyTokenResponse>('/auth/verify-token', {
-            method: 'POST',
-            body: jsonBody,
-        });
+        try {
+            const result = await this.makeRequest<VerifyTokenResponse>('/auth/verify-token', {
+                method: 'POST',
+                body: jsonBody,
+            });
+
+            console.log('✅ apiService.verifyToken: Success:', result);
+            return result;
+        } catch (error) {
+            console.error('❌ apiService.verifyToken: Error:', error);
+            console.error('❌ apiService.verifyToken: Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+            throw error;
+        }
     }
 
     async registerUser(data: UserRegistrationData): Promise<AuthResponse> {
@@ -253,6 +270,7 @@ class ApiService {
         });
     }
 }
+
 
 export const apiService = new ApiService(API_BASE_URL);
 export default apiService;
