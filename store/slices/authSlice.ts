@@ -1,4 +1,4 @@
-// File: store/slices/authSlice.ts - FIXED VERSION
+// File: store/slices/authSlice.ts - FIXED VERSION - Always verify profile status
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
@@ -8,7 +8,7 @@ import { apiService } from '../../services/apiService';
 let auth: any = null;
 
 const initFirebaseAuth = async () => {
-    if (!auth) { 
+    if (!auth) {
         try {
             const { auth: firebaseAuth } = await import('../../config/firebase');
             auth = firebaseAuth;
@@ -31,7 +31,7 @@ interface AuthState {
     user: SerializableUser | null;
     token: string | null;
     isLoading: boolean;
-    isInitialized: boolean; // NEW: Track if auth is initialized
+    isInitialized: boolean;
     error: string | null;
     tokenExpiry: number | null;
     hasProfile: boolean;
@@ -41,12 +41,13 @@ const initialState: AuthState = {
     isAuthenticated: false,
     user: null,
     token: null,
-    isLoading: true, // Start as loading
-    isInitialized: false, // CRITICAL: Start as not initialized
+    isLoading: true,
+    isInitialized: false,
     error: null,
     tokenExpiry: null,
     hasProfile: false,
 };
+
 const TOKEN_EXPIRY_DAYS = 30;
 const TOKEN_EXPIRY_MS = TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
@@ -59,7 +60,37 @@ const toSerializableUser = (firebaseUser: any): SerializableUser => {
     };
 };
 
-// NEW: Initialize Firebase Auth State Listener
+// Helper function to verify profile status with backend
+const verifyProfileWithBackend = async (token: string): Promise<{ hasProfile: boolean; profile: any }> => {
+    console.log('🔄 Verifying profile status with backend...');
+
+    try {
+        const response = await apiService.verifyToken(token);
+        console.log('✅ Backend verification successful:', {
+            valid: response.valid,
+            hasProfile: response.has_profile
+        });
+
+        return {
+            hasProfile: response.has_profile || false,
+            profile: response.profile || null
+        };
+    } catch (error) {
+        console.warn('⚠️ Backend verification failed:', error.message);
+
+        // For network errors, assume the worst case (no profile) to be safe
+        // This will prompt the user to set up their profile again if needed
+        if (error.message.includes('Failed to fetch') || error.message.includes('Network error')) {
+            console.log('🌐 Network error detected - defaulting to no profile');
+            return { hasProfile: false, profile: null };
+        }
+
+        // For other errors, also default to no profile for safety
+        return { hasProfile: false, profile: null };
+    }
+};
+
+// FIXED: Initialize Firebase Auth State Listener - Always check server
 export const initializeAuth = createAsyncThunk(
     'auth/initialize',
     async (_, { dispatch, rejectWithValue }) => {
@@ -88,60 +119,16 @@ export const initializeAuth = createAsyncThunk(
 
                             // Get fresh token
                             console.log('🔄 initializeAuth: Getting Firebase token...');
-                            const token = await firebaseUser.getIdToken();
-                            console.log('✅ initializeAuth: Token obtained (length):', token.length);
+                            const token = await firebaseUser.getIdToken(true); // Force refresh
+                            console.log('✅ initializeAuth: Fresh token obtained');
 
-                            // Check profile status - ADD EXTENSIVE DEBUGGING HERE
-                            let hasProfile = false;
-                            let userProfile = null;
+                            // CRITICAL FIX: Always verify with backend, no fallbacks
+                            console.log('🔄 initializeAuth: Starting mandatory backend verification...');
+                            const profileStatus = await verifyProfileWithBackend(token);
 
-                            console.log('🔄 initializeAuth: Starting profile check...');
-
-                            try {
-                                console.log('🔄 initializeAuth: Attempting backend verification...');
-                                console.log('🔄 initializeAuth: Token (first 50 chars):', token.substring(0, 50) + '...');
-
-                                const response = await apiService.verifyToken(token);
-                                console.log('✅ initializeAuth: Backend verification response:', response);
-
-                                hasProfile = response.has_profile;
-                                userProfile = response.profile;
-                                console.log('✅ initializeAuth: Backend verification successful, hasProfile:', hasProfile);
-
-                            } catch (error) {
-                                console.warn('⚠️ initializeAuth: Backend verification failed:', error);
-                                console.warn('⚠️ initializeAuth: Error details:', {
-                                    message: error.message,
-                                    stack: error.stack,
-                                    name: error.name
-                                });
-
-                                // Fallback: Check Firebase Firestore directly
-                                console.log('🔄 initializeAuth: Trying Firebase direct check...');
-                                try {
-                                    const { FirebaseProfileService } = await import('@/services/firebaseProfileService');
-                                    console.log('✅ initializeAuth: FirebaseProfileService imported');
-
-                                    const result = await FirebaseProfileService.checkUserProfile({
-                                        uid: firebaseUser.uid,
-                                        email: firebaseUser.email
-                                    });
-
-                                    console.log('✅ initializeAuth: Firebase direct check result:', result);
-
-                                    hasProfile = result.hasProfile;
-                                    userProfile = result.profile;
-                                    console.log('✅ initializeAuth: Firebase direct check:', hasProfile ? 'Profile found' : 'No profile');
-                                } catch (firebaseError) {
-                                    console.warn('⚠️ initializeAuth: Firebase direct check also failed:', firebaseError);
-                                    console.warn('⚠️ initializeAuth: Firebase error details:', {
-                                        message: firebaseError.message,
-                                        stack: firebaseError.stack,
-                                        name: firebaseError.name
-                                    });
-                                    hasProfile = false;
-                                }
-                            }
+                            console.log('✅ initializeAuth: Profile verification complete:', {
+                                hasProfile: profileStatus.hasProfile
+                            });
 
                             // Store token
                             console.log('🔄 initializeAuth: Storing token in AsyncStorage...');
@@ -154,15 +141,14 @@ export const initializeAuth = createAsyncThunk(
                                 user: toSerializableUser(firebaseUser),
                                 token,
                                 tokenExpiry: expiry,
-                                hasProfile,
+                                hasProfile: profileStatus.hasProfile,
                                 isAuthenticated: true,
                             };
 
                             console.log('✅ initializeAuth: Resolving with result:', {
                                 userEmail: result.user.email,
                                 hasProfile: result.hasProfile,
-                                isAuthenticated: result.isAuthenticated,
-                                tokenLength: result.token.length
+                                isAuthenticated: result.isAuthenticated
                             });
 
                             resolve(result);
@@ -181,27 +167,17 @@ export const initializeAuth = createAsyncThunk(
                                 isAuthenticated: false,
                             };
 
-                            console.log('✅ initializeAuth: Resolving with no-user result:', result);
+                            console.log('✅ initializeAuth: Resolving with no-user result');
                             resolve(result);
                         }
                     } catch (error) {
                         console.error('❌ initializeAuth: Error in auth state listener:', error);
-                        console.error('❌ initializeAuth: Error details:', {
-                            message: error.message,
-                            stack: error.stack,
-                            name: error.name
-                        });
                         reject(error);
                     }
                 });
             });
         } catch (error: any) {
             console.error('❌ initializeAuth: Top-level error:', error);
-            console.error('❌ initializeAuth: Error details:', {
-                message: error.message,
-                stack: error.stack,
-                name: error.name
-            });
             return rejectWithValue(error.message);
         }
     }
@@ -215,8 +191,8 @@ export const clearPersistedAuthState = async () => {
         await AsyncStorage.multiRemove([
             'authToken',
             'tokenExpiry',
-            'persist:root', // Redux persist key
-            'persist:auth'  // Auth persist key
+            'persist:root',
+            'persist:auth'
         ]);
 
         // Clear all AsyncStorage keys that start with 'persist:'
@@ -252,30 +228,24 @@ export const signInWithEmail = createAsyncThunk(
             const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
             console.log('✅ Firebase sign in successful');
 
-            const token = await userCredential.user.getIdToken();
+            const token = await userCredential.user.getIdToken(true); // Force refresh
 
-            // Verify with backend
-            let hasProfile = false;
-            try {
-                console.log('🔄 Verifying token with backend...');
-                const response = await apiService.verifyToken(token);
-                hasProfile = response.has_profile;
-                console.log('✅ Backend verification successful, hasProfile:', hasProfile);
-            } catch (apiError) {
-                console.warn('⚠️ Backend verification failed:', apiError);
-                hasProfile = false;
-            }
+            // FIXED: Always verify profile status with backend
+            console.log('🔄 Verifying profile status after sign in...');
+            const profileStatus = await verifyProfileWithBackend(token);
 
             // Store token with expiry
             const expiry = Date.now() + TOKEN_EXPIRY_MS;
             await AsyncStorage.setItem('authToken', token);
             await AsyncStorage.setItem('tokenExpiry', expiry.toString());
 
+            console.log('✅ Sign in complete, hasProfile:', profileStatus.hasProfile);
+
             return {
                 user: toSerializableUser(userCredential.user),
                 token,
                 tokenExpiry: expiry,
-                hasProfile,
+                hasProfile: profileStatus.hasProfile,
             };
         } catch (error: any) {
             console.error('❌ Sign in failed:', error);
@@ -312,7 +282,7 @@ export const signUpWithEmail = createAsyncThunk(
             const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
             console.log('✅ Firebase account creation successful');
 
-            const token = await userCredential.user.getIdToken();
+            const token = await userCredential.user.getIdToken(true);
 
             // Store token with expiry
             const expiry = Date.now() + TOKEN_EXPIRY_MS;
@@ -369,8 +339,6 @@ export const signOut = createAsyncThunk(
     }
 );
 
-
-
 const authSlice = createSlice({
     name: 'auth',
     initialState,
@@ -384,7 +352,7 @@ const authSlice = createSlice({
         },
         resetAuth: (state) => {
             console.log('🔄 Resetting auth state');
-            return { ...initialState, isInitialized: true }; // Keep initialized true
+            return { ...initialState, isInitialized: true };
         },
         setLoading: (state, action: PayloadAction<boolean>) => {
             state.isLoading = action.payload;

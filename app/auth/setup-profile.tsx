@@ -17,6 +17,7 @@ import { registerUser } from '@/store/slices/userSlice';
 import { updateProfileStatus } from '@/store/slices/authSlice';
 import { BearIcon } from '@/components/BearIcon';
 import { Plus, X } from 'lucide-react-native';
+import ClearDataButton from '@/components/ClearDataButton';
 
 export default function SetupProfileScreen() {
     const dispatch = useAppDispatch();
@@ -120,6 +121,7 @@ export default function SetupProfileScreen() {
                     <Text style={styles.title}>Complete Your Profile</Text>
                     <Text style={styles.subtitle}>Tell us about you and your child</Text>
                 </View>
+                <ClearDataButton />
 
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Parent Information</Text>

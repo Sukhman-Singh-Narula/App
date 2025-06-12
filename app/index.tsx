@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import SplashScreenComponent from '@/components/SplashScreenComponent';
 
+
 export default function IndexScreen() {
     const { isAuthenticated, hasProfile, isReady, needsProfileSetup, canNavigateToHome } = useAuth();
 

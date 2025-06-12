@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { View, Text, ActivityIndicator } from 'react-native';
 import SplashScreenComponent from '@/components/SplashScreenComponent';
 import { COLORS } from '@/constants/Colors';
+// In your browser console or add this temporarily to your app:
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -29,6 +30,7 @@ function LoadingScreen() {
       }}>
         Loading...
       </Text>
+      
     </View>
   );
 }

@@ -1,8 +1,7 @@
-// File: store/slices/userSlice.ts - FIXED VERSION with better profile registration handling
+// File: store/slices/userSlice.ts - Updated with logout support
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { apiService } from '../../services/apiService';
 import { RootState } from '../store';
-import { refreshToken } from './authSlice';
 
 export interface ChildProfile {
     name: string;
@@ -56,18 +55,10 @@ const makeAuthenticatedRequest = async (
         // Try the API call with current token
         return await apiCall(token);
     } catch (error: any) {
-        // If token expired, try to refresh and retry
+        // If token expired, handle gracefully
         if (error.message.includes('Token expired') || error.message.includes('401')) {
-            console.log('🔄 Token expired during API call, refreshing...');
-
-            try {
-                const refreshResult = await dispatch(refreshToken()).unwrap();
-                // Retry with refreshed token
-                return await apiCall(refreshResult.token);
-            } catch (refreshError) {
-                console.error('❌ Token refresh failed:', refreshError);
-                throw new Error('Authentication failed. Please sign in again.');
-            }
+            console.log('🔄 Token expired during API call');
+            throw new Error('Authentication failed. Please sign in again.');
         }
         throw error;
     }
@@ -119,7 +110,6 @@ export const registerUser = createAsyncThunk(
                 dispatch
             );
 
-            // FIXED: Handle both new registration and existing profile cases
             if (response.success) {
                 console.log('✅ User registration/profile retrieval successful');
 
@@ -128,7 +118,6 @@ export const registerUser = createAsyncThunk(
 
                 return response.profile;
             } else {
-                // This case should not happen with the fixed server code
                 throw new Error(response.message || 'Registration failed');
             }
 
@@ -224,10 +213,17 @@ const userSlice = createSlice({
             state.error = null;
         },
         clearUserProfile: (state) => {
+            console.log('🧹 Clearing user profile from state');
             state.profile = null;
+            state.error = null;
         },
         setUserProfile: (state, action: PayloadAction<UserProfile>) => {
             state.profile = action.payload;
+        },
+        // NEW: Reset user state completely (for logout)
+        resetUserState: (state) => {
+            console.log('🔄 Resetting user state to initial state');
+            return initialState;
         },
     },
     extraReducers: (builder) => {
@@ -246,7 +242,7 @@ const userSlice = createSlice({
                 state.isLoading = false;
                 state.error = action.payload as string;
             })
-            // Register User - FIXED to handle existing profiles
+            // Register User
             .addCase(registerUser.pending, (state) => {
                 state.isLoading = true;
                 state.error = null;
@@ -291,9 +287,18 @@ const userSlice = createSlice({
             .addCase(updateSystemPrompt.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+            })
+            // IMPORTANT: Listen for auth logout to clear user state
+            .addCase('auth/signOut/fulfilled', (state) => {
+                console.log('🧹 Auth signOut detected - clearing user state');
+                return initialState;
+            })
+            .addCase('auth/forceLogout', (state) => {
+                console.log('🧹 Auth forceLogout detected - clearing user state');
+                return initialState;
             });
     },
 });
 
-export const { clearUserError, clearUserProfile, setUserProfile } = userSlice.actions;
+export const { clearUserError, clearUserProfile, setUserProfile, resetUserState } = userSlice.actions;
 export default userSlice.reducer;

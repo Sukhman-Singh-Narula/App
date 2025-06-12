@@ -22,6 +22,7 @@ import { fetchUserProfile } from '@/store/slices/userSlice';
 import { generateStory, fetchUserStories } from '@/store/slices/storySlice';
 import { Mic, Send, Sparkles } from 'lucide-react-native';
 
+
 export default function HomeScreen() {
   const dispatch = useAppDispatch();
   const { profile } = useAppSelector((state) => state.user);
@@ -147,6 +148,7 @@ export default function HomeScreen() {
           <Text style={styles.headerTitle}>StoryTeller</Text>
           <Text style={styles.headerSubtitle}>by Sukhman</Text>
         </View>
+        
 
         <View style={styles.bearContainer}>
           <BearIcon />
